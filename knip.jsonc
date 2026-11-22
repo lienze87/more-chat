@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+
+  // Expo 由 app.json 的 main -> index.js -> App.tsx 启动；显式声明入口，
+  // 避免 knip 把根组件误判为孤立文件。
+  "entry": ["App.tsx"],
+
+  // 构建产物与原生工程目录均已写入 .gitignore，knip 会自动忽略，无需重复配置。
+
+  // 这些包不会出现在 import 语句里，但运行或构建时是必需的，因此不算无用依赖：
+  // - @babel/core：babel-preset-expo 的 peer，Metro 转换依赖
+  // - @expo/ngrok：`expo start --tunnel` 的运行时依赖
+  // - @react-native/codegen / @react-native/gradle-plugin：pnpm isolated 布局下
+  //   Gradle 与 codegen 需要显式安装（见 docs/ARCHITECTURE.md）
+  // - expo-updates：knip 的 Expo 插件默认认为 OTA 更新已启用，本项目未接入
+  "ignoreDependencies": [
+    "@babel/core",
+    "@expo/ngrok",
+    "@react-native/codegen",
+    "@react-native/gradle-plugin",
+    "expo-updates",
+  ],
+
+  // 仅用于同文件内部的 export（如内部工具函数、仅在组件签名里出现的 Props/类型）
+  // 不算对外 API，不报“未使用导出”。
+  "ignoreExportsUsedInFile": true,
+}

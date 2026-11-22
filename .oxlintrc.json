@@ -1,0 +1,51 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "eslint",
+    "react",
+    "unicorn",
+    "typescript",
+    "oxc",
+    "import",
+    "jest",
+    "jsx-a11y",
+    "promise",
+    "node"
+  ],
+  "env": {
+    "builtin": true,
+    "browser": true,
+    "node": true,
+    "jest": true
+  },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "no-unused-vars": [
+      "error",
+      {"argsIgnorePattern": "^_", "varsIgnorePattern": "^_"}
+    ],
+    "no-console": ["warn", {"allow": ["warn", "error"]}],
+    "react/no-unstable-nested-components": "warn",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    "jsx-a11y/no-autofocus": "off",
+    "unicorn/no-array-sort": "off",
+    "unicorn/prefer-add-event-listener": "off",
+    "eslint/no-await-in-loop": "off",
+    "react/no-array-index-key": "off"
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    "android/**",
+    "ios/**",
+    "build/**",
+    "dist/**",
+    ".expo/**",
+    ".cache/**",
+    "coverage/**"
+  ]
+}

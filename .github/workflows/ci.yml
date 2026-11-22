@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.21.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # 与本地 pre-commit 的 lint-staged 对齐：格式、静态检查、类型、无用代码、单测。
+      - run: pnpm format:check
+      # 架构门禁：循环依赖 + 分层倒置（oxlint / knip 都覆盖不到）。
+      - run: pnpm arch
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm knip
+      - run: pnpm test

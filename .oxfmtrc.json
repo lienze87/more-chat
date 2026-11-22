@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "arrowParens": "avoid",
+  "singleQuote": true,
+  "trailingComma": "all",
+  "bracketSpacing": false,
+  "printWidth": 80,
+  "tabWidth": 2,
+  "semi": true,
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "node_modules",
+    "android",
+    "ios",
+    "build",
+    "dist",
+    "coverage",
+    ".cache",
+    ".expo",
+    "pnpm-lock.yaml",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.gif",
+    "*.webp",
+    "*.ico",
+    "*.jar",
+    "*.keystore"
+  ]
+}
