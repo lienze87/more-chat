@@ -24,7 +24,7 @@
 - **系统提示词**：内置 More 的人格与行动准则（`src/config/defaultSystemPrompt.ts`）始终发送，设置页内容追加在其后作为附加要求。
 - **本地持久化**：会话、消息、设置保存在 AsyncStorage，防抖写入。
 - **多会话管理**：左侧抽屉切换对话，长按重命名 / 清空 / 删除；启动后默认落在一段新对话。
-- **体验细节**：深浅色主题、Markdown 渲染、分享、错误重试、空状态引导。
+- **体验细节**：深浅色主题、Markdown 渲染、复制回答、错误重试、空状态引导。
 
 ## 技术栈
 
@@ -44,12 +44,13 @@
 ## 环境要求
 
 - Node.js ≥ 22.12
-- pnpm 12.x（与 CI 中的 12.21.0 保持一致；本仓库不使用 `packageManager` 字段自动切换版本，避免 pnpm 12 自管理时的 store 锁错误）
+- pnpm 12.x（与 CI 中的 12.21.0 保持一致；本仓库不使用 `packageManager` 字段自动切换版本，避免 pnpm 12 自管理时的 store 锁错误）。若 `pnpm --version` 不是 12.x，多半是 Node 自带的 corepack shim 在提供旧版本（corepack 默认落到它内置的 9.x）：`corepack disable pnpm` 之后再 `npm i -g pnpm@12.21.0`，让 PATH 上只剩这一份
+- pnpm 12 默认不执行未声明的依赖构建脚本；`pnpm-workspace.yaml` 的 `allowBuilds` 已放行 `@parcel/watcher`（jest 的文件监听依赖），否则 `pnpm install` 会以 `ERR_PNPM_IGNORED_BUILDS` 失败
 - 运行 Web：无需额外环境，`pnpm web` 即可
-- 运行 Android 原生构建：JDK 17、Android SDK 36（platform 36、build-tools 36.0.0）、一台 Android 设备或模拟器（API 24+）
+- 运行 Android 原生构建：JDK 17、Android SDK 37（platform 37、build-tools 37.0.0）、一台 Android 设备或模拟器（API 24+）
 - 用 Expo Go 远程调试：手机安装与 SDK 58 匹配的 Expo Go
 
-> `android/` 由 `expo prebuild` 按 `app.json` 生成，属于构建产物（已 gitignore）。SDK/NDK 版本由 `plugins/withAndroidSdkVersions.js` 固定为 **compileSdk 36 / build-tools 36.0.0 / NDK 28.2.13676358**（与仓库历史配置一致，避开 Expo SDK 58 默认的 SDK 37）。升级 React Native / Expo 后，先移除该插件的覆盖再重新 prebuild；仅用 Expo Go 远程调试时不需要本机安装 NDK。
+> `android/` 由 `expo prebuild` 按 `app.json` 生成，属于构建产物（已 gitignore）。SDK/NDK 版本由 `plugins/withAndroidSdkVersions.js` 固定为 **compileSdk 37 / build-tools 37.0.0 / NDK 28.2.13676358**。compileSdk 37 是硬性要求：Expo SDK 58 以预编译 AAR 分发 expo 模块（如 `expo.modules.asset:58.0.21`），其 AAR metadata 声明 `minCompileSdk=37`，用 36 会在 `checkDebugAarMetadata` 阶段失败。升级 React Native / Expo 后，先移除该插件的覆盖再重新 prebuild；仅用 Expo Go 远程调试时不需要本机安装 NDK。
 
 ## 快速开始
 
@@ -71,7 +72,7 @@ pnpm export:web           # 输出静态站点到 dist/
 
 - `react-native-web` 负责渲染，`AsyncStorage` 在浏览器中使用 `localStorage`。
 - `api.deepseek.com` 已返回 CORS 头，浏览器可直连；若换成自建代理，需要允许 `http://localhost:8081` 的跨域请求。
-- 原生 `Alert` / `Share` 在 Web 上是空实现：确认框与操作菜单走应用内 `DialogHost`，分享走 `src/utils/share.ts`（Web Share / 剪贴板）。
+- 原生 `Alert` 在 Web 上是空实现：确认框与操作菜单走应用内 `DialogHost`（`src/ui/primitives/Dialog.tsx`）；复制走 `src/utils/clipboard.ts`（Web 用 `navigator.clipboard`，原生用 `react-native` 的 `Clipboard`）。
 
 ### Expo 远程调试（真机 / 隧道）
 
@@ -100,6 +101,8 @@ cd android && gradlew.bat assembleDebug && gradlew.bat assembleRelease
 Release 包使用模板 debug 签名，发布前请替换。
 产物：`android/app/build/outputs/apk/debug/app-debug.apk`。
 
+> **Windows 注意**：Gradle/AGP 会为每个库生成 `prefab_command.bat` 启动脚本，CMake 还会在 `<模块>/android/.cxx/` 下建目录；Windows 的 `CreateProcess`（java、cmd.exe 均未声明 longPathAware，注册表 `LongPathsEnabled=1` 也无效）无法处理 260 字符以上的路径。pnpm 12 会把过长的虚拟 store 目录名哈希到 ≤ 60 字符（`virtualStoreDirMaxLength` 默认值），实际路径稳定在 ~220 字符，无需额外配置；若改用 pnpm 9.x（该默认值为 120，路径可达 ~290）并报 `CreateProcess error=2`，用 `pnpm install --virtual-store-dir=<短绝对路径>` 绕开即可。
+
 ### 常用命令
 
 | 命令                                    | 作用                               |
@@ -111,12 +114,14 @@ Release 包使用模板 debug 签名，发布前请替换。
 | `pnpm android`                          | prebuild + 编译安装 Debug 包       |
 | `pnpm prebuild` / `pnpm prebuild:clean` | 生成 / 重新生成原生工程            |
 | `pnpm typecheck`                        | TypeScript 全量类型检查            |
+| `pnpm arch`                             | 架构门禁：循环依赖 / 分层倒置      |
 | `pnpm lint`                             | oxlint                             |
 | `pnpm format` / `pnpm format:check`     | oxfmt 格式化 / 只检查              |
 | `pnpm knip`                             | 未使用文件 / 导出 / 依赖检查       |
 | `pnpm test`                             | Jest 单元测试                      |
 | `pnpm export:android`                   | 生成 Android JS bundle，验证模块图 |
 | `pnpm export:web`                       | 导出静态 Web 站点到 `dist/`        |
+| `pnpm check`                            | 串行跑完本地全部检查（同 CI）      |
 | `pnpm doctor`                           | expo-doctor 检查依赖与配置         |
 | `adb reverse tcp:8081 tcp:8081`         | 真机连接 Metro（USB）              |
 
@@ -124,17 +129,17 @@ Release 包使用模板 debug 签名，发布前请替换。
 
 ```text
 src/
-  api/            DeepSeek 协议类型、SSE 传输与解析、请求构造、错误文案
-  app/            应用入口、主题装配、导航
-  data/           AsyncStorage 仓储、防抖持久化
+  adapters/       DeepSeek 协议类型、SSE 传输与解析、请求构造、错误文案；仓储与存储
+  app/            应用入口（AppRoot）、导航装配
+  config/         常量（存储键、超时、长度上限）与内置系统提示词
   domain/         对话/设置领域模型、引用、latest_reminder 与 env_info 快照
-  features/       chatStore / settingsStore / chatEngine / streamReducer
-  ui/             主题、通用组件、两个页面
-  utils/          URL / 文本工具、分享适配
-__tests__/        SSE、归并、请求、引用、元信息、持久化测试
-docs/             架构与 API 集成说明
+  features/       chatStore / settingsStore / chatEngine / chatRun / streamReducer
+  ui/             主题、通用组件、primitives（含 DialogHost）、hooks、两个页面
+  utils/          URL / 文本工具、剪贴板
+__tests__/        SSE、归并、请求、引用、元信息、持久化、引擎与 store 测试
+docs/             架构、API 集成、UI 系统与贡献规范
 android/          expo prebuild 生成的原生工程（gitignore）
-plugins/          Expo config plugins（Android SDK / NDK 版本）
+plugins/          Expo config plugins（Android SDK / NDK / CMake 版本）
 ```
 
 ## 配置项
@@ -155,7 +160,7 @@ plugins/          Expo config plugins（Android SDK / NDK 版本）
 
 ## 安全与合规
 
-- API Key 目前存在 AsyncStorage，**不属于安全存储**。正式发布前建议接入 `react-native-keychain` 或 Android Keystore，仓库中的 `credentialsRepository` 已把 Key 与普通设置分离，替换实现即可。
+- API Key 目前存在 AsyncStorage，**不属于安全存储**。正式发布前建议接入 `react-native-keychain` 或 Android Keystore，仓库中的 `credentialsRepository`（`src/adapters/data/repositories/settingsRepository.ts`）已把 Key 与普通设置分离，替换实现即可。
 - 对外提供服务时应开启 `safety_check`，并按 DeepSeek 开放平台协议履行内容审核、大模型登记与 AI 标识等义务。
 - 模型输出仅供参考，应用内已提示「内容由 AI 生成」。
 
@@ -171,3 +176,5 @@ plugins/          Expo config plugins（Android SDK / NDK 版本）
 
 - [架构说明](docs/ARCHITECTURE.md)
 - [DeepSeek API 集成说明](docs/DEEPSEEK_INTEGRATION.md)
+- [UI 设计系统](docs/UI_SYSTEM.md)
+- [代码规范与提交检查](docs/CONTRIBUTING.md)
