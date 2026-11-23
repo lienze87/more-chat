@@ -61,7 +61,7 @@ pnpm android              # 首次会自动 prebuild，然后编译并安装 Deb
 pnpm web                  # 浏览器调试（http://localhost:8081）
 ```
 
-首次打开后进入 **设置 → 接口**，填入 DeepSeek API Key（`sk-...`）。Key 保存在本机 AsyncStorage，不会写入仓库。
+首次打开后进入 **设置 → 接口**，填入 DeepSeek API Key（`sk-...`）并点击保存。原生端通过系统凭据存储保留 Key，Web 端刷新后需要重新填写。清空输入框并保存即可移除 Key。
 
 ### Web 端调试
 
@@ -160,7 +160,7 @@ plugins/          Expo config plugins（Android SDK / NDK / CMake 版本）
 
 ## 安全与合规
 
-- API Key 目前存在 AsyncStorage，**不属于安全存储**。正式发布前建议接入 `react-native-keychain` 或 Android Keystore，仓库中的 `credentialsRepository`（`src/adapters/data/repositories/settingsRepository.ts`）已把 Key 与普通设置分离，替换实现即可。
+- 原生端使用 `expo-secure-store` 保存 API Key。升级时先将旧 Key 写入系统凭据存储，成功后再删除 AsyncStorage 中的旧值。Web 端会删除旧版浏览器存储中的 Key。
 - 对外提供服务时应开启 `safety_check`，并按 DeepSeek 开放平台协议履行内容审核、大模型登记与 AI 标识等义务。
 - 模型输出仅供参考，应用内已提示「内容由 AI 生成」。
 

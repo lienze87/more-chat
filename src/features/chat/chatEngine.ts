@@ -18,7 +18,7 @@ import {
   MAX_INPUT_LENGTH,
   NETWORK_TIMEOUT_MS,
 } from '../../config/appConfig';
-import {registerRunCanceller, useChatStore} from './chatStore';
+import {useChatStore} from './chatStore';
 import {useSettingsStore} from '../settings/settingsStore';
 import {createChatRunController} from './chatRun';
 
@@ -41,11 +41,6 @@ const chatRun = createChatRunController({
     clear: handle => clearTimeout(handle as ReturnType<typeof setTimeout>),
   },
 });
-
-// 删除/清空会话时由 store 反向通知运行时，UI 不再需要手工调用 stopStreaming。
-registerRunCanceller(conversationId =>
-  chatRun.cancelConversation(conversationId),
-);
 
 function findConversation(conversationId: string): Conversation | undefined {
   return useChatStore
@@ -200,4 +195,19 @@ export async function regenerateFrom(
 
 export function stopStreaming(): void {
   chatRun.cancel();
+}
+
+export function deleteConversation(conversationId: string): void {
+  chatRun.cancelConversation(conversationId);
+  useChatStore.getState().deleteConversation(conversationId);
+}
+
+export function deleteAllConversations(): void {
+  chatRun.cancel();
+  useChatStore.getState().deleteAllConversations();
+}
+
+export function clearMessages(conversationId: string): void {
+  chatRun.cancelConversation(conversationId);
+  useChatStore.getState().clearMessages(conversationId);
 }

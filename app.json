@@ -29,6 +29,9 @@
       "shortName": "MoreChat",
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["./plugins/withAndroidSdkVersions"]
+    "plugins": [
+      "./plugins/withAndroidSdkVersions",
+      ["expo-secure-store", {"faceIDPermission": false}]
+    ]
   }
 }

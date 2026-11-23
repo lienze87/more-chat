@@ -249,6 +249,71 @@ describe('chatEngine', () => {
     expect(chat.useChatStore.getState().streaming).toBeNull();
   });
 
+  it('releases the run when the transport throws before returning a handle', async () => {
+    const {client, chat, engine} = setup();
+    client.streamChatCompletion.mockImplementationOnce(() => {
+      throw new Error('请求无法初始化');
+    });
+
+    await engine.sendMessage('c1', '第一条');
+
+    expect(assistantOf(chat)).toMatchObject({
+      status: 'error',
+      error: '请求无法初始化',
+    });
+    expect(chat.useChatStore.getState().streaming).toBeNull();
+
+    const pending = engine.sendMessage('c1', '第二条');
+    expect(client.streamChatCompletion).toHaveBeenCalledTimes(2);
+    lastStreamOptions(client).onDone();
+    await pending;
+  });
+
+  it('ignores late callbacks from an aborted run during the next run', async () => {
+    const {client, chat, engine} = setup();
+    const first = engine.sendMessage('c1', '第一条');
+    const oldStream = lastStreamOptions(client);
+    engine.stopStreaming();
+    await first;
+
+    const second = engine.sendMessage('c1', '第二条');
+    const newStream = lastStreamOptions(client);
+    const active = chat.useChatStore.getState().streaming;
+    oldStream.onChunk(chunk({content: '过期内容'}));
+    oldStream.onDone();
+    newStream.onChunk(chunk({content: '当前回复'}));
+    expect(chat.useChatStore.getState().streaming).toEqual(active);
+
+    newStream.onDone();
+    await second;
+    expect(
+      chat.useChatStore.getState().conversations[0].messages.at(-1),
+    ).toMatchObject({status: 'complete', content: '当前回复'});
+  });
+
+  it('ends an unsupported client tool call as a retryable failure', async () => {
+    const {client, chat, engine} = setup();
+    const pending = engine.sendMessage('c1', '你好');
+    const stream = lastStreamOptions(client);
+    stream.onChunk(
+      chunk(
+        {
+          tool_calls: [{index: 0, id: 'call_1', function: {name: 'example'}}],
+        },
+        'tool_calls',
+      ),
+    );
+    stream.onDone();
+    await pending;
+
+    expect(assistantOf(chat)).toMatchObject({
+      status: 'error',
+      clientToolCalls: [{id: 'call_1', status: 'failed'}],
+      segments: [{kind: 'client_tool', call: {status: 'failed'}}],
+    });
+    expect(chat.useChatStore.getState().streaming).toBeNull();
+  });
+
   it('keeps truncation and refusal apart from normal completion', async () => {
     const truncated = setup();
     const first = truncated.engine.sendMessage('c1', '你好');
@@ -390,7 +455,7 @@ describe('chatEngine', () => {
     const {client, chat, engine, abort} = setup();
 
     const pending = engine.sendMessage('c1', '你好');
-    chat.useChatStore.getState().deleteConversation('c1');
+    engine.deleteConversation('c1');
 
     expect(abort).toHaveBeenCalledTimes(1);
 
@@ -400,10 +465,10 @@ describe('chatEngine', () => {
   });
 
   it('aborts the run when every conversation is cleared', async () => {
-    const {client, chat, engine, abort} = setup();
+    const {client, engine, abort} = setup();
 
     const pending = engine.sendMessage('c1', '你好');
-    chat.useChatStore.getState().deleteAllConversations();
+    engine.deleteAllConversations();
     expect(abort).toHaveBeenCalledTimes(1);
 
     lastStreamOptions(client).onDone();
@@ -414,7 +479,7 @@ describe('chatEngine', () => {
     const {client, chat, engine, abort} = setup();
 
     const pending = engine.sendMessage('c1', '你好');
-    chat.useChatStore.getState().deleteConversation('other');
+    engine.deleteConversation('other');
 
     expect(abort).not.toHaveBeenCalled();
     expect(chat.useChatStore.getState().streaming).not.toBeNull();

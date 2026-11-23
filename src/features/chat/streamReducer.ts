@@ -380,11 +380,17 @@ export function markFailed(
   message: AssistantMessage,
   error: string,
 ): AssistantMessage {
+  let next = message;
+  for (const call of message.clientToolCalls) {
+    if (call.status === 'running') {
+      next = upsertClientToolCall(next, {...call, status: 'failed', error});
+    }
+  }
   return {
-    ...message,
+    ...next,
     status: 'error',
     error,
-    segments: closeThinking(message.segments),
+    segments: closeThinking(next.segments),
     reasoning: deriveReasoning(message),
   };
 }

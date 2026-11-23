@@ -1,6 +1,6 @@
 import React from 'react';
 import {StyleSheet, View, type StyleProp, type ViewStyle} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme} from '../theme/ThemeProvider';
 import {layout} from '../theme/tokens';
 import {AppText} from './AppText';
@@ -16,11 +16,21 @@ const DEFAULT_EDGES: NonNullable<ScreenProps['edges']> = ['top'];
 /** 页面根容器：统一背景色与安全区。 */
 export function Screen({children, edges = DEFAULT_EDGES}: ScreenProps) {
   const theme = useTheme();
+  const {top} = useSafeAreaInsets();
   return (
     <SafeAreaView
       edges={edges}
       style={[styles.flex, {backgroundColor: theme.colors.background}]}
     >
+      {top > 0 && edges.includes('top') ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.topInset,
+            {height: top, backgroundColor: theme.colors.surface},
+          ]}
+        />
+      ) : null}
       {children}
     </SafeAreaView>
   );
@@ -101,6 +111,12 @@ export function PageHeader({
 }
 
 const styles = StyleSheet.create({
+  topInset: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   flex: {
     flex: 1,
   },

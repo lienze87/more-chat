@@ -17,6 +17,7 @@ export interface TextFieldProps {
   onChangeText: (value: string) => void;
   placeholder?: string;
   secureTextEntry?: boolean;
+  editable?: boolean;
   multiline?: boolean;
   keyboardType?: KeyboardTypeOptions;
   autoCapitalize?: TextInputProps['autoCapitalize'];
@@ -37,6 +38,7 @@ export function TextField({
   onChangeText,
   placeholder,
   secureTextEntry,
+  editable,
   multiline,
   keyboardType,
   autoCapitalize = 'none',
@@ -70,6 +72,7 @@ export function TextField({
         placeholder={placeholder}
         placeholderTextColor={colors.textTertiary}
         secureTextEntry={secureTextEntry}
+        editable={editable}
         multiline={multiline}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}

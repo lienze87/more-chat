@@ -49,24 +49,6 @@ interface ChatState {
   setStreaming: (streaming: StreamingState | null) => void;
 }
 
-type RunCanceller = (conversationId: string | null) => void;
-
-let runCanceller: RunCanceller | null = null;
-
-/**
- * 运行时在这里注册自己的中止入口。
- *
- * store 只负责广播“这段对话没了”，具体要不要中止由运行时决定；这样 store
- * 不必认识 chatEngine，也不会形成循环依赖。
- */
-export function registerRunCanceller(canceller: RunCanceller): void {
-  runCanceller = canceller;
-}
-
-const notifyRunCancelled = (conversationId: string | null): void => {
-  runCanceller?.(conversationId);
-};
-
 const conversationsSaver = createThrottledSaver<Conversation[]>(
   conversations => conversationRepository.save(conversations),
   1200,
@@ -111,22 +93,16 @@ export const useChatStore = create<ChatState>()(set => ({
   },
 
   deleteConversation: conversationId => {
-    notifyRunCancelled(conversationId);
     set(state => ({
       conversations: state.conversations.filter(
         conversation => conversation.id !== conversationId,
       ),
-      streaming:
-        state.streaming?.conversationId === conversationId
-          ? null
-          : state.streaming,
     }));
     persist();
   },
 
   deleteAllConversations: () => {
-    notifyRunCancelled(null);
-    set({conversations: [], streaming: null});
+    set({conversations: []});
     persist();
   },
 
@@ -150,7 +126,6 @@ export const useChatStore = create<ChatState>()(set => ({
   },
 
   clearMessages: conversationId => {
-    notifyRunCancelled(conversationId);
     set(state => ({
       conversations: state.conversations.map(conversation =>
         conversation.id === conversationId

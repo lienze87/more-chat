@@ -97,7 +97,7 @@ export function ChatComposer({
             );
           }}
           placeholder="给 MoreChat 发送消息…"
-          placeholderTextColor={colors.textTertiary}
+          placeholderTextColor={colors.textSecondary}
           multiline
           maxLength={MAX_INPUT_LENGTH}
           accessibilityLabel="消息输入框"

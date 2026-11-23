@@ -41,7 +41,10 @@ export function buildApiMessages(
     }
     const hasContent = message.content.trim().length > 0;
     const hasTools = message.serverToolCalls.length > 0;
-    const hasClientTools = message.clientToolCalls.length > 0;
+    const clientCalls = message.clientToolCalls.filter(
+      call => call.status !== 'running',
+    );
+    const hasClientTools = clientCalls.length > 0;
     if (!hasContent && !hasTools && !hasClientTools) {
       continue;
     }
@@ -57,12 +60,12 @@ export function buildApiMessages(
       assistant.server_tool_calls = message.serverToolCalls;
     }
     if (hasClientTools) {
-      assistant.tool_calls = message.clientToolCalls.map(toApiToolCall);
+      assistant.tool_calls = clientCalls.map(toApiToolCall);
     }
     messages.push(assistant);
 
     // 客户端工具的返回值必须紧跟在触发它的 assistant 之后，否则服务端会拒收。
-    for (const call of message.clientToolCalls) {
+    for (const call of clientCalls) {
       const result = toolResultContent(call);
       if (result === null) {
         continue;

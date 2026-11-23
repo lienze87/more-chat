@@ -19,6 +19,7 @@ import {ClientToolCard} from './ClientToolCard';
 import {MarkdownText} from './MarkdownText';
 import {ThinkingBlock} from './ThinkingBlock';
 import {ToolCallCard} from './ToolCallCard';
+import {ToolProcessDisclosure} from './ToolProcessDisclosure';
 import {TypingIndicator} from './TypingIndicator';
 
 interface AssistantMessageViewProps {
@@ -40,6 +41,52 @@ type Block =
   | {kind: 'tool'; call: ServerToolCall}
   | {kind: 'client_tool'; call: ClientToolCall}
   | {kind: 'text'; text: string};
+
+type ProcessStep = Extract<Block, {kind: 'thinking' | 'tool'}>;
+type DisplayBlock = Block | {kind: 'process'; steps: ProcessStep[]};
+
+function groupToolProcess(blocks: Block[]): DisplayBlock[] {
+  const grouped: DisplayBlock[] = [];
+  let steps: ProcessStep[] = [];
+
+  const flush = () => {
+    if (steps.some(step => step.kind === 'tool')) {
+      grouped.push({kind: 'process', steps});
+    } else {
+      grouped.push(...steps);
+    }
+    steps = [];
+  };
+
+  for (const block of blocks) {
+    if (block.kind === 'thinking' || block.kind === 'tool') {
+      steps.push(block);
+    } else {
+      flush();
+      grouped.push(block);
+    }
+  }
+  flush();
+  return grouped;
+}
+
+function renderProcessStep(
+  step: ProcessStep,
+  index: number,
+  isStreaming: boolean,
+) {
+  return step.kind === 'tool' ? (
+    <ToolCallCard key={`tool-${step.call.id}-${index}`} call={step.call} />
+  ) : (
+    <ThinkingBlock
+      key={`thinking-${index}`}
+      text={step.text}
+      streaming={step.streaming && isStreaming}
+      startedAt={step.startedAt}
+      endedAt={step.endedAt}
+    />
+  );
+}
 
 function toBlocks(message: AssistantMessage): Block[] {
   const blocks: Block[] = [];
@@ -102,6 +149,10 @@ export function AssistantMessageView({
   );
   const annotations: CitationAnnotation[] =
     textBlocks.length === 1 ? message.annotations : [];
+  const displayBlocks =
+    !isStreaming && message.status === 'complete' && textBlocks.length > 0
+      ? groupToolProcess(blocks)
+      : blocks;
 
   const canCopy = message.content.trim().length > 0 && !isStreaming;
 
@@ -135,25 +186,23 @@ export function AssistantMessageView({
 
   return (
     <View style={{gap: spacing.xs}}>
-      {blocks.map((block, index) => {
-        if (block.kind === 'thinking') {
+      {displayBlocks.map((block, index) => {
+        if (block.kind === 'process') {
           return (
-            <ThinkingBlock
-              key={`thinking-${index}`}
-              text={block.text}
-              streaming={block.streaming && isStreaming}
-              startedAt={block.startedAt}
-              endedAt={block.endedAt}
-            />
+            <ToolProcessDisclosure
+              key={`process-${index}`}
+              calls={block.steps.flatMap(step =>
+                step.kind === 'tool' ? [step.call] : [],
+              )}
+            >
+              {block.steps.map((step, stepIndex) =>
+                renderProcessStep(step, stepIndex, false),
+              )}
+            </ToolProcessDisclosure>
           );
         }
-        if (block.kind === 'tool') {
-          return (
-            <ToolCallCard
-              key={`tool-${block.call.id}-${index}`}
-              call={block.call}
-            />
-          );
+        if (block.kind === 'thinking' || block.kind === 'tool') {
+          return renderProcessStep(block, index, isStreaming);
         }
         if (block.kind === 'client_tool') {
           return (

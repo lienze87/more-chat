@@ -226,14 +226,9 @@ describe('buildChatRequest', () => {
           type: 'function',
           function: {name: 'get_weather', arguments: '{"city":"上海"}'},
         },
-        {
-          id: 'call_2',
-          type: 'function',
-          function: {name: 'get_time', arguments: '{}'},
-        },
       ],
     });
-    // 只有执行完成的调用才有结果消息，仍在运行的不会被补空。
+    // 回放时只发送能够配对工具结果的调用。
     expect(messages[3]).toEqual({
       role: 'tool',
       tool_call_id: 'call_1',

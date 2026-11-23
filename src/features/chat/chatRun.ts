@@ -10,13 +10,14 @@ import {describeError} from '../../adapters/api/errors';
 import type {AssistantMessage, Conversation} from '../../domain/chat/types';
 import {applyFinishReason, markAborted, markFailed} from './streamReducer';
 
-/** 一次进行中的生成。stopRequested 属于这一轮，不再是全局开关。 */
-export interface ActiveRun {
-  conversationId: string;
-  messageId: string;
-  stopRequested: boolean;
-  abort: () => void;
+interface ActiveRun extends StreamingState {
+  cancel: () => void;
 }
+
+type RunOutcome =
+  | {kind: 'done'}
+  | {kind: 'aborted'}
+  | {kind: 'error'; error: unknown};
 
 export interface StreamingState {
   conversationId: string;
@@ -69,7 +70,6 @@ export interface ChatRunController {
   /** 仅当当前轮属于该对话时中止；传 null 表示全部中止。 */
   cancelConversation: (conversationId: string | null) => void;
   isRunning: () => boolean;
-  activeRun: () => ActiveRun | null;
 }
 
 const FLUSH_INTERVAL_MS = 40;
@@ -125,93 +125,97 @@ export function createChatRunController(deps: ChatRunDeps): ChatRunController {
     }, FLUSH_INTERVAL_MS);
   };
 
-  /** 收尾：清空缓冲、释放运行态、清掉全局 streaming 标记。 */
-  const settle = (): void => {
-    clearFlushTimer();
-    pending = [];
-    active = null;
-    deps.setStreaming(null);
-  };
-
-  const abortActive = (): void => {
-    if (!active) {
-      return;
-    }
-    active.stopRequested = true;
-    active.abort();
-  };
-
-  const start = (run: ChatRunRequest): Promise<void> => {
-    const current: ActiveRun = {
-      conversationId: run.conversationId,
-      messageId: run.assistantId,
-      stopRequested: false,
-      abort: () => undefined,
-    };
-    active = current;
-    pending = [];
-    deps.setStreaming({
-      conversationId: run.conversationId,
-      messageId: run.assistantId,
-    });
-
-    return new Promise<void>(resolve => {
-      const handle = deps.stream({
-        apiKey: run.apiKey,
-        baseUrl: run.baseUrl,
-        request: run.request,
-        timeoutMs: run.timeoutMs,
-        onChunk: chunk => {
-          pending.push(chunk);
-          scheduleFlush();
+  const start = (run: ChatRunRequest): Promise<void> =>
+    new Promise<void>((resolve, reject) => {
+      const {conversationId, assistantId} = run;
+      const state: {handle?: StreamChatHandle; outcome?: RunOutcome} = {};
+      const current: ActiveRun = {
+        conversationId,
+        messageId: assistantId,
+        cancel: () => {
+          if (state.outcome) {
+            return;
+          }
+          finish({kind: 'aborted'});
+          state.handle?.abort();
         },
-        onDone: () => {
+      };
+
+      function finish(result: RunOutcome): void {
+        if (active !== current || state.outcome) {
+          return;
+        }
+        state.outcome = result;
+        try {
           flush();
-          const message = findMessage(run.conversationId, run.assistantId);
+          const message = findMessage(conversationId, assistantId);
           if (message) {
-            if (current.stopRequested) {
-              deps.updateAssistantMessage(
-                run.conversationId,
-                run.assistantId,
-                markAborted,
-              );
-            } else if (message.status === 'streaming') {
-              deps.updateAssistantMessage(
-                run.conversationId,
-                run.assistantId,
-                settled => applyFinishReason(settled, 'stop'),
-              );
-            }
-            const settled = findMessage(run.conversationId, run.assistantId);
-            if (settled?.title) {
-              deps.applyAutoTitle(run.conversationId, settled.title);
-            }
-          }
-          settle();
-          resolve();
-        },
-        onError: error => {
-          flush();
-          const message = findMessage(run.conversationId, run.assistantId);
-          if (
-            message &&
-            message.status !== 'complete' &&
-            message.status !== 'refused'
-          ) {
-            const text = describeError(error);
             deps.updateAssistantMessage(
-              run.conversationId,
-              run.assistantId,
-              failed => markFailed(failed, text),
+              conversationId,
+              assistantId,
+              previous => {
+                if (result.kind === 'aborted') {
+                  return markAborted(previous);
+                }
+                if (
+                  previous.status === 'complete' ||
+                  previous.status === 'refused'
+                ) {
+                  return previous;
+                }
+                if (result.kind === 'error') {
+                  return markFailed(previous, describeError(result.error));
+                }
+                if (previous.status === 'awaiting_tool') {
+                  return markFailed(
+                    previous,
+                    '当前版本无法执行客户端工具，请重新生成。',
+                  );
+                }
+                return applyFinishReason(previous, 'stop');
+              },
             );
+            if (result.kind !== 'error' && message.title) {
+              deps.applyAutoTitle(conversationId, message.title);
+            }
           }
-          settle();
           resolve();
-        },
-      });
-      current.abort = handle.abort;
+        } catch (error) {
+          reject(error);
+        } finally {
+          active = null;
+          deps.setStreaming(null);
+        }
+      }
+
+      active = current;
+      deps.setStreaming({conversationId, messageId: assistantId});
+      if (active !== current) {
+        return;
+      }
+
+      try {
+        state.handle = deps.stream({
+          apiKey: run.apiKey,
+          baseUrl: run.baseUrl,
+          request: run.request,
+          timeoutMs: run.timeoutMs,
+          onChunk: chunk => {
+            if (active === current && !state.outcome) {
+              pending.push(chunk);
+              scheduleFlush();
+            }
+          },
+          onDone: () => finish({kind: 'done'}),
+          onError: error => finish({kind: 'error', error}),
+        });
+        if (state.outcome?.kind === 'aborted') {
+          state.handle.abort();
+        }
+      } catch (error) {
+        finish({kind: 'error', error});
+      }
     });
-  };
 
   const cancelConversation = (conversationId: string | null): void => {
     if (!active) {
@@ -220,14 +224,13 @@ export function createChatRunController(deps: ChatRunDeps): ChatRunController {
     if (conversationId !== null && active.conversationId !== conversationId) {
       return;
     }
-    abortActive();
+    active.cancel();
   };
 
   return {
     start,
-    cancel: abortActive,
+    cancel: () => active?.cancel(),
     cancelConversation,
     isRunning: () => active !== null,
-    activeRun: () => active,
   };
 }

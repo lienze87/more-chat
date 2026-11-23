@@ -14,6 +14,8 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../../app/navigation/types';
 import type {ChatMessage} from '../../domain/chat/types';
 import {
+  clearMessages,
+  deleteConversation,
   regenerateFrom,
   sendMessage,
   stopStreaming,
@@ -65,9 +67,7 @@ export function ChatScreen({navigation}: Props) {
   );
   const streaming = useChatStore(state => state.streaming);
   const createConversation = useChatStore(state => state.createConversation);
-  const deleteConversation = useChatStore(state => state.deleteConversation);
   const renameConversation = useChatStore(state => state.renameConversation);
-  const clearMessages = useChatStore(state => state.clearMessages);
 
   const apiKey = useSettingsStore(state => state.apiKey);
 
@@ -133,7 +133,6 @@ export function ChatScreen({navigation}: Props) {
 
   const removeConversation = useCallback(
     (conversationId: string) => {
-      // 中止进行中的生成由 chatStore → chatRun 广播，这里只负责删除。
       deleteConversation(conversationId);
       if (conversationId !== activeId) {
         return;
@@ -144,7 +143,7 @@ export function ChatScreen({navigation}: Props) {
       autoScroll.current = true;
       setActiveId(next ? next.id : createConversation().id);
     },
-    [activeId, createConversation, deleteConversation],
+    [activeId, createConversation],
   );
 
   const openSettings = useCallback(() => {

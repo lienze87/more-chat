@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {Linking, ScrollView, StyleSheet, View} from 'react-native';
+import {Linking, Platform, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../../app/navigation/types';
@@ -10,6 +10,7 @@ import {
   type ThemeMode,
 } from '../../domain/settings/types';
 import {useChatStore} from '../../features/chat/chatStore';
+import {deleteAllConversations} from '../../features/chat/chatEngine';
 import {useSettingsStore} from '../../features/settings/settingsStore';
 import {APP_VERSION} from '../../config/appConfig';
 import {showAlert} from '../primitives/dialogStore';
@@ -43,18 +44,27 @@ export function SettingsScreen({navigation}: Props) {
   const insets = useSafeAreaInsets();
   const settings = useSettingsStore(state => state.settings);
   const apiKey = useSettingsStore(state => state.apiKey);
+  const apiKeyError = useSettingsStore(state => state.apiKeyError);
+  const savingApiKey = useSettingsStore(state => state.savingApiKey);
   const setApiKey = useSettingsStore(state => state.setApiKey);
   const updateSettings = useSettingsStore(state => state.updateSettings);
   const resetSettings = useSettingsStore(state => state.resetSettings);
   const conversationCount = useChatStore(state => state.conversations.length);
-  const deleteAllConversations = useChatStore(
-    state => state.deleteAllConversations,
-  );
 
   const [keyDraft, setKeyDraft] = useSyncedDraft(apiKey);
   const [revealKey, setRevealKey] = useState(false);
 
-  const commitKey = () => setApiKey(keyDraft);
+  const commitKey = () => {
+    void setApiKey(keyDraft);
+  };
+  const web = Platform.OS === 'web';
+  const keyStatus = savingApiKey
+    ? '正在保存…'
+    : apiKey
+      ? web
+        ? '当前页面已配置'
+        : '已保存'
+      : '尚未配置';
 
   const confirmClearAll = () => {
     showAlert(
@@ -65,8 +75,7 @@ export function SettingsScreen({navigation}: Props) {
         {
           text: '清空',
           style: 'destructive',
-          // 清空历史会经 chatStore 广播中止正在进行的生成。
-          onPress: () => deleteAllConversations(),
+          onPress: deleteAllConversations,
         },
       ],
     );
@@ -94,7 +103,11 @@ export function SettingsScreen({navigation}: Props) {
         <ContentColumn style={styles.content}>
           <Section
             title="接口"
-            footer="API Key 只保存在本机，不会上传到其它服务器。"
+            footer={
+              web
+                ? 'API Key 仅用于当前页面，刷新后需重新填写。'
+                : 'API Key 由系统凭据存储保护。'
+            }
           >
             <View
               style={[
@@ -108,6 +121,7 @@ export function SettingsScreen({navigation}: Props) {
                 onChangeText={setKeyDraft}
                 onBlur={commitKey}
                 onSubmitEditing={commitKey}
+                editable={!savingApiKey}
                 secureTextEntry={!revealKey}
                 placeholder="sk-..."
                 accessory={
@@ -123,7 +137,7 @@ export function SettingsScreen({navigation}: Props) {
               />
               <View style={styles.inlineRow}>
                 <AppText variant="footnote" tone="tertiary">
-                  {apiKey ? '已保存' : '尚未配置'}
+                  {keyStatus}
                 </AppText>
                 <AppText
                   variant="label"
@@ -134,6 +148,15 @@ export function SettingsScreen({navigation}: Props) {
                   保存
                 </AppText>
               </View>
+              {apiKeyError ? (
+                <AppText
+                  variant="footnote"
+                  tone="danger"
+                  accessibilityLiveRegion="polite"
+                >
+                  {apiKeyError}
+                </AppText>
+              ) : null}
             </View>
             <Divider />
             <SettingsTextField

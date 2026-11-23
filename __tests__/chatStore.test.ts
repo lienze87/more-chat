@@ -217,10 +217,9 @@ describe('chatStore', () => {
     expect(useChatStore.getState().conversations[0].messages).toHaveLength(2);
   });
 
-  it('clears streaming when the active conversation is deleted', () => {
+  it('removes only the requested conversation', () => {
     useChatStore.setState({
       conversations: [conversation('c1'), conversation('c2')],
-      streaming: {conversationId: 'c1', messageId: 'a1'},
     });
 
     useChatStore.getState().deleteConversation('c1');
@@ -228,7 +227,6 @@ describe('chatStore', () => {
     expect(useChatStore.getState().conversations.map(item => item.id)).toEqual([
       'c2',
     ]);
-    expect(useChatStore.getState().streaming).toBeNull();
   });
 
   it('does not override a user title with the model generated one', () => {

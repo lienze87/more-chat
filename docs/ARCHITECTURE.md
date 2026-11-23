@@ -66,30 +66,31 @@ ChatScreen.submit
             │         └─ SseParser → JSON chunk → onChunk
             ├─ 40ms 批量 flush → chatStore.appendAssistantChunks
             │    └─ applyStreamChunk（纯函数）
-            └─ onDone / onError
-                 ├─ finalize（stop / length / content_filter / tool_calls）
+            └─ 完成 / 失败 / 停止
+                 ├─ 确认助手消息终态
                  ├─ 写入模型标题
-                 └─ settle（清缓冲、释放运行态、清 streaming）
+                 └─ 释放运行态、清 streaming
 ```
 
-`chatRun` 是唯一的运行态所有者：`activeRun`、缓冲队列与 40ms 定时器都在控制器
-实例里，不再散落为模块级变量。取消只有一条路径——`chatRun.cancel()` 或
-`cancelConversation(id)`，由 `AbortSignal` 传导到 XHR。
+`chatRun` 管理当前运行、缓冲队列与 40ms 定时器，并向 store 同步界面使用的
+`streaming` 标记。完成、失败、启动异常和主动停止共用收尾逻辑。删除或清空对话时，
+`chatEngine` 先取消对应的运行，再修改会话数据。主动停止会中止 XHR，并忽略该轮迟到的回调。
 
 设计要点：
 
 1. **纯函数归并**：`applyStreamChunk` 不触碰 React，便于测试思考/工具/拒答等边界。
 2. **批量更新**：每 40ms 合并一次 chunk，避免每 token 一次 React 更新与 Markdown 重排。
-3. **显式终态**：完成、截断、拒答、中止、等待工具、失败都有独立状态，UI 文案不同。
+3. **显式终态**：完成、截断、拒答、中止、失败有对应的界面反馈。需要本机执行工具的响应会收为可重试的失败。
 4. **回传正确性**：带 `tools` 的请求必须回传 `reasoning_content` 与 `server_tool_calls`，`requestBuilder` 从消息模型还原。
 5. **拒答清理**：收到 `content_filter` 后清空思考与正文，仅保留工具卡片，避免展示已流出的违规文本。
 
 ## 持久化
 
-- 三个 key：`settings` / `conversations` / `credentials`（见 `src/config/appConfig.ts`）。
+- AsyncStorage 存放 `settings` 和 `conversations`。`credentials` 是旧版迁移使用的键。
 - 会话写入使用 `createThrottledSaver`：流式期间合并写，最多 1.2s 落盘一次；应用退到后台时强制 flush。
 - 读取时做结构校验，历史中断（status=streaming）会被修复为 aborted。
-- API Key 与普通设置分开存储，便于以后替换为 Keystore。
+- 原生端通过 `credentialsRepository` 将 API Key 保存至 SecureStore，Web 端由
+  `settingsStore` 在内存中持有。两端会清理旧版保存在 AsyncStorage 中的凭据。
 
 ## 主题与自适应
 
@@ -101,13 +102,13 @@ ChatScreen.submit
 
 ## 扩展点
 
-| 需求                           | 改动位置                                                         |
-| ------------------------------ | ---------------------------------------------------------------- |
-| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer |
-| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                           |
-| 客户端工具（function calling） | `ClientToolCall` 已就位；补 `runtime/tools` 注册表与执行循环     |
-| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                    |
-| Keychain                       | 替换 `settingsRepository.ts` 中的 `credentialsRepository`        |
+| 需求                           | 改动位置                                                            |
+| ------------------------------ | ------------------------------------------------------------------- |
+| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer    |
+| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                              |
+| 客户端工具（function calling） | `ClientToolCall` 已就位；补 `runtime/tools` 注册表与执行循环        |
+| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                       |
+| 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts` |
 
 ## pnpm 依赖布局
 
