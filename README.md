@@ -50,7 +50,7 @@
 - 运行 Android 原生构建：JDK 17、Android SDK 37（platform 37、build-tools 37.0.0）、一台 Android 设备或模拟器（API 24+）
 - 用 Expo Go 远程调试：手机安装与 SDK 58 匹配的 Expo Go
 
-> `android/` 由 `expo prebuild` 按 `app.json` 生成，属于构建产物（已 gitignore）。SDK/NDK 版本由 `plugins/withAndroidSdkVersions.js` 固定为 **compileSdk 37 / build-tools 37.0.0 / NDK 28.2.13676358**。compileSdk 37 是硬性要求：Expo SDK 58 以预编译 AAR 分发 expo 模块（如 `expo.modules.asset:58.0.21`），其 AAR metadata 声明 `minCompileSdk=37`，用 36 会在 `checkDebugAarMetadata` 阶段失败。升级 React Native / Expo 后，先移除该插件的覆盖再重新 prebuild；仅用 Expo Go 远程调试时不需要本机安装 NDK。
+> `android/` 由 `expo prebuild` 按 `app.json` 生成，属于构建产物（已 gitignore）。版本号来自 `package.json`（`plugins/withPackageVersion.js`），SDK/NDK 版本由 `plugins/withAndroidSdkVersions.js` 固定为 **compileSdk 37 / build-tools 37.0.0 / NDK 28.2.13676358**。compileSdk 37 是硬性要求：Expo SDK 58 以预编译 AAR 分发 expo 模块（如 `expo.modules.asset:58.0.21`），其 AAR metadata 声明 `minCompileSdk=37`，用 36 会在 `checkDebugAarMetadata` 阶段失败。升级 React Native / Expo 后，先移除该插件的覆盖再重新 prebuild；仅用 Expo Go 远程调试时不需要本机安装 NDK。
 
 ## 快速开始
 
@@ -58,6 +58,7 @@
 pnpm install
 pnpm start                # Expo 开发服务器，按 a 打开 Android、w 打开 Web
 pnpm android              # 首次会自动 prebuild，然后编译并安装 Debug 包
+pnpm android:build        # 打包 release APK（产物在 build/android/）
 pnpm web                  # 浏览器调试（http://localhost:8081）
 ```
 
@@ -88,42 +89,42 @@ Expo Go 只包含 Expo SDK 内置模块，本项目当前依赖均已内置，�
 ### 构建 APK
 
 ```bash
-pnpm prebuild             # 生成 android/（已 gitignore，属于构建产物）
-
-# macOS / Linux
-cd android && ./gradlew assembleDebug && ./gradlew assembleRelease
-
-# Windows
-cd android && gradlew.bat assembleDebug && gradlew.bat assembleRelease
+pnpm android:build        # release 包：JS bundle 打进 APK，脱离 Metro 也能运行
+pnpm android:build:debug  # debug 包：仅本机调试用，运行时仍需连接 Metro
 ```
 
-也可直接使用 Expo CLI：`npx expo run:android --variant release`。
-Release 包使用模板 debug 签名，发布前请替换。
-产物：`android/app/build/outputs/apk/debug/app-debug.apk`。
+- 脚本 `scripts/build-android-apk.mjs` 封装 Gradle Wrapper，Windows / macOS / Linux 通用：`android/` 不存在时（全新克隆）先自动跑一次 `expo prebuild --platform android`，再执行 `assembleRelease` / `assembleDebug`，最后把产物复制到 `build/android/`（已 gitignore）。
+- **版本号以 `package.json` 的 `version` 为唯一来源**：`app.json` 不再声明 `version`，`plugins/withPackageVersion.js` 在 prebuild 时把它写进 `versionName`；脚本发现原生工程的 `versionName` 与 `package.json` 不一致会自动重新 prebuild。设置页「版本」与请求里的 `clientVersion`（`src/config/appConfig.ts`）读同一字段。产物名形如 `morechat-0.2.0-release.apk`。
+- 需要强制重新生成原生工程时：`pnpm android:build -- --prebuild`。
+- 想直接调 Gradle（例如指定 ABI）：`cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a`；Windows 把 `./gradlew` 换成 `gradlew.bat`。
+- 也可使用 Expo CLI：`npx expo run:android --variant release`。
+- Release 包沿用模板里的 debug 签名，发布前请替换 keystore。Gradle 原始产物位于 `android/app/build/outputs/apk/release/app-release.apk`。
 
 > **Windows 注意**：Gradle/AGP 会为每个库生成 `prefab_command.bat` 启动脚本，CMake 还会在 `<模块>/android/.cxx/` 下建目录；Windows 的 `CreateProcess`（java、cmd.exe 均未声明 longPathAware，注册表 `LongPathsEnabled=1` 也无效）无法处理 260 字符以上的路径。pnpm 12 会把过长的虚拟 store 目录名哈希到 ≤ 60 字符（`virtualStoreDirMaxLength` 默认值），实际路径稳定在 ~220 字符，无需额外配置；若改用 pnpm 9.x（该默认值为 120，路径可达 ~290）并报 `CreateProcess error=2`，用 `pnpm install --virtual-store-dir=<短绝对路径>` 绕开即可。
 
 ### 常用命令
 
-| 命令                                    | 作用                               |
-| --------------------------------------- | ---------------------------------- |
-| `pnpm start` / `pnpm start:clear`       | 启动 Expo 开发服务器 / 清缓存启动  |
-| `pnpm start:lan` / `pnpm start:tunnel`  | 局域网 / 公网隧道（远程真机）      |
-| `pnpm start:go`                         | 使用 Expo Go 打开                  |
-| `pnpm web` / `pnpm web:clear`           | Web 调试 / 清缓存                  |
-| `pnpm android`                          | prebuild + 编译安装 Debug 包       |
-| `pnpm prebuild` / `pnpm prebuild:clean` | 生成 / 重新生成原生工程            |
-| `pnpm typecheck`                        | TypeScript 全量类型检查            |
-| `pnpm arch`                             | 架构门禁：循环依赖 / 分层倒置      |
-| `pnpm lint`                             | oxlint                             |
-| `pnpm format` / `pnpm format:check`     | oxfmt 格式化 / 只检查              |
-| `pnpm knip`                             | 未使用文件 / 导出 / 依赖检查       |
-| `pnpm test`                             | Jest 单元测试                      |
-| `pnpm export:android`                   | 生成 Android JS bundle，验证模块图 |
-| `pnpm export:web`                       | 导出静态 Web 站点到 `dist/`        |
-| `pnpm check`                            | 串行跑完本地全部检查（同 CI）      |
-| `pnpm doctor`                           | expo-doctor 检查依赖与配置         |
-| `adb reverse tcp:8081 tcp:8081`         | 真机连接 Metro（USB）              |
+| 命令                                    | 作用                                 |
+| --------------------------------------- | ------------------------------------ |
+| `pnpm start` / `pnpm start:clear`       | 启动 Expo 开发服务器 / 清缓存启动    |
+| `pnpm start:lan` / `pnpm start:tunnel`  | 局域网 / 公网隧道（远程真机）        |
+| `pnpm start:go`                         | 使用 Expo Go 打开                    |
+| `pnpm web` / `pnpm web:clear`           | Web 调试 / 清缓存                    |
+| `pnpm android`                          | prebuild + 编译安装 Debug 包         |
+| `pnpm android:build`                    | 打包 release APK 到 `build/android/` |
+| `pnpm android:build:debug`              | 打包 debug APK 到 `build/android/`   |
+| `pnpm prebuild` / `pnpm prebuild:clean` | 生成 / 重新生成原生工程              |
+| `pnpm typecheck`                        | TypeScript 全量类型检查              |
+| `pnpm arch`                             | 架构门禁：循环依赖 / 分层倒置        |
+| `pnpm lint`                             | oxlint                               |
+| `pnpm format` / `pnpm format:check`     | oxfmt 格式化 / 只检查                |
+| `pnpm knip`                             | 未使用文件 / 导出 / 依赖检查         |
+| `pnpm test`                             | Jest 单元测试                        |
+| `pnpm export:android`                   | 生成 Android JS bundle，验证模块图   |
+| `pnpm export:web`                       | 导出静态 Web 站点到 `dist/`          |
+| `pnpm check`                            | 串行跑完本地全部检查（同 CI）        |
+| `pnpm doctor`                           | expo-doctor 检查依赖与配置           |
+| `adb reverse tcp:8081 tcp:8081`         | 真机连接 Metro（USB）                |
 
 ## 目录结构
 
@@ -139,7 +140,7 @@ src/
 __tests__/        SSE、归并、请求、引用、元信息、持久化、引擎与 store 测试
 docs/             架构、API 集成、UI 系统与贡献规范
 android/          expo prebuild 生成的原生工程（gitignore）
-plugins/          Expo config plugins（Android SDK / NDK / CMake 版本）
+plugins/          Expo config plugins（Android SDK / NDK / CMake 版本、package.json 版本号）
 ```
 
 ## 配置项

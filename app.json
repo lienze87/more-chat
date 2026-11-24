@@ -2,7 +2,6 @@
   "expo": {
     "name": "MoreChat",
     "slug": "morechat",
-    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "morechat",
@@ -30,6 +29,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withPackageVersion",
       "./plugins/withAndroidSdkVersions",
       ["expo-secure-store", {"faceIDPermission": false}]
     ]

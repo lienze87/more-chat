@@ -1,4 +1,11 @@
-export const APP_VERSION = '0.1.0';
+import {version} from '../../package.json';
+
+/**
+ * 版本号唯一来源：package.json。
+ * APK 的 versionName 由 plugins/withPackageVersion.js 在 prebuild 时写入，
+ * 设置页展示、请求里的 clientVersion 与安装包始终一致。
+ */
+export const APP_VERSION = version;
 
 export const STORAGE_KEYS = {
   settings: '@morechat/settings/v1',

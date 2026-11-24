@@ -8,6 +8,7 @@
  *
  * 规则命中的位置就是需要改代码的位置，不需要额外配置。
  */
+import {existsSync} from 'node:fs';
 import {readdir, readFile} from 'node:fs/promises';
 import path from 'node:path';
 
@@ -45,6 +46,14 @@ function resolveSpecifier(fromFile, specifier, known) {
     const base = path.posix.normalize(
       path.posix.join(path.posix.dirname(fromFile), specifier),
     );
+    // 非脚本资源（如 src 里 import package.json 取版本号）只需文件存在。
+    if (base.endsWith('.json')) {
+      if (existsSync(path.join(ROOT, base))) {
+        return base;
+      }
+      unresolved.push({from: fromFile, specifier});
+      return null;
+    }
     for (const suffix of ['.ts', '.tsx', '/index.ts', '/index.tsx', '']) {
       if (known.has(base + suffix)) {
         candidates.push(base + suffix);
