@@ -56,8 +56,7 @@ pnpm lint:staged    # 只检查已暂存的文件（pre-commit 内部调用）
 - `.oxfmtrc.json`：由原 Prettier 配置迁移而来，保持单引号、无括号内空格、80 列。
   `ignorePatterns` 已包含构建产物、锁文件与图片。
 - 以下规则按运行时或场景显式关闭，改动前先确认约束仍成立：
-  - `unicorn/no-array-sort`：部分 Hermes 版本的 `Array#toSorted()` 不可用；
-  - `unicorn/prefer-add-event-listener`：传输层刻意使用 XHR 的 `on*` 句柄；
+  - `unicorn/no-array-sort`：列表可以原地排序刚创建的数组；
   - `eslint/no-await-in-loop`：`createThrottledSaver` 需要串行写盘；
   - `react/no-array-index-key`：消息时间线按位置生成、无稳定 id；
   - `jsx-a11y/no-autofocus`：重命名弹窗需要自动聚焦输入框。

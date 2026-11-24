@@ -73,13 +73,7 @@ describe('env_info', () => {
 });
 
 describe('composeUserContent', () => {
-  it('wraps the request in a user_query tag', () => {
-    expect(composeUserContent('你好')).toBe(
-      '<user_query>\n你好\n</user_query>',
-    );
-  });
-
-  it('prefixes the env snapshot when one was stored', () => {
+  it('prefixes the stored env snapshot', () => {
     expect(composeUserContent('你好', '  <env_info>快照</env_info>\n')).toBe(
       '<env_info>快照</env_info>\n\n<user_query>\n你好\n</user_query>',
     );

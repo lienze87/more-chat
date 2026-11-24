@@ -165,16 +165,6 @@ export function DialogHost() {
     </View>
   );
 
-  // react-native-web 的 Modal 会把子树挂到独立的 portal 里，Web 端改用普通
-  // 绝对定位遮罩，既避免 portal 带来的焦点陷阱问题，也方便自动化截图。
-  if (Platform.OS === 'web') {
-    return (
-      <View style={styles.webOverlay} pointerEvents={current ? 'auto' : 'none'}>
-        {content}
-      </View>
-    );
-  }
-
   return (
     <Modal
       visible={rendered}
@@ -448,14 +438,6 @@ function DialogPrompt({
 }
 
 const styles = StyleSheet.create({
-  webOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1000,
-  },
   backdrop: {
     flex: 1,
     alignItems: 'center',

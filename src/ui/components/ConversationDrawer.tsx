@@ -15,6 +15,7 @@ import {
   sortConversationsByRecency,
 } from '../../features/chat/chatStore';
 import {AppText} from '../primitives/AppText';
+import {Button} from '../primitives/Button';
 import {Divider} from '../primitives/Divider';
 import {openActionMenu, openPrompt} from '../primitives/dialogStore';
 import {Icon} from '../primitives/Icon';
@@ -28,14 +29,16 @@ interface ConversationDrawerProps {
   activeId: string | null;
   onClose: () => void;
   onSelect: (conversationId: string) => void;
+  onNewConversation: () => void;
   onDelete: (conversationId: string) => void;
   onRename: (conversationId: string, title: string) => void;
   onClearMessages: (conversationId: string) => void;
+  onOpenFiles: () => void;
   onOpenSettings: () => void;
 }
 
 /**
- * 首页左侧抽屉：对话列表 + 长按操作菜单 + 底部设置入口。
+ * 首页左侧抽屉：新建对话、对话列表，以及底部的文件与设置入口。
  *
  * 不使用 `Modal`：抽屉需要在应用内层级里，这样全局对话框与重命名弹窗
  * 天然盖在它上面，也避免原生多 Modal 叠加时的展示顺序问题。
@@ -45,9 +48,11 @@ export function ConversationDrawer({
   activeId,
   onClose,
   onSelect,
+  onNewConversation,
   onDelete,
   onRename,
   onClearMessages,
+  onOpenFiles,
   onOpenSettings,
 }: ConversationDrawerProps) {
   const theme = useTheme();
@@ -204,6 +209,14 @@ export function ConversationDrawer({
           </View>
         </View>
 
+        <Button
+          label="新建对话"
+          icon="plus"
+          variant="soft"
+          fullWidth
+          onPress={onNewConversation}
+          style={{marginHorizontal: spacing.lg, marginBottom: spacing.md}}
+        />
         <Divider />
 
         <FlatList
@@ -219,7 +232,7 @@ export function ConversationDrawer({
           ListEmptyComponent={
             <View style={{padding: spacing.xxl}}>
               <AppText variant="footnote" tone="tertiary" align="center">
-                还没有对话，点击右上角的 + 开始新对话
+                还没有对话
               </AppText>
             </View>
           }
@@ -235,27 +248,39 @@ export function ConversationDrawer({
 
         <Divider />
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="打开设置"
-          onPress={onOpenSettings}
-          style={({pressed}) => [
-            styles.settingsRow,
-            webPointer,
-            {
-              paddingHorizontal: spacing.lg,
-              paddingVertical: spacing.md,
-              gap: spacing.md,
-              backgroundColor: pressed ? colors.surfaceMuted : 'transparent',
-            },
-          ]}
-        >
-          <Icon name="settings" size={theme.iconSize.lg} tone="secondary" />
-          <AppText variant="body" style={styles.settingsLabel}>
-            设置
-          </AppText>
-          <Icon name="chevronRight" size={theme.iconSize.sm} tone="tertiary" />
-        </Pressable>
+        {(
+          [
+            {label: '文件', icon: 'folder', onPress: onOpenFiles},
+            {label: '设置', icon: 'settings', onPress: onOpenSettings},
+          ] as const
+        ).map(({label, icon, onPress}) => (
+          <Pressable
+            key={label}
+            accessibilityRole="button"
+            accessibilityLabel={`打开${label}`}
+            onPress={onPress}
+            style={({pressed}) => [
+              styles.footerRow,
+              webPointer,
+              {
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.md,
+                gap: spacing.md,
+                backgroundColor: pressed ? colors.surfaceMuted : 'transparent',
+              },
+            ]}
+          >
+            <Icon name={icon} size={theme.iconSize.lg} tone="secondary" />
+            <AppText variant="body" style={styles.footerLabel}>
+              {label}
+            </AppText>
+            <Icon
+              name="chevronRight"
+              size={theme.iconSize.sm}
+              tone="tertiary"
+            />
+          </Pressable>
+        ))}
       </Animated.View>
     </View>
   );
@@ -291,11 +316,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 1,
   },
-  settingsRow: {
+  footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  settingsLabel: {
+  footerLabel: {
     flex: 1,
   },
 });

@@ -24,6 +24,7 @@ const conversation: Conversation = {
       createdAt: 1,
       status: 'complete',
       reminder: '2026-11-22,星期日,上海,App,中文',
+      envInfo: '<env_info>测试</env_info>',
     },
     {
       id: 'a1',
@@ -58,7 +59,11 @@ describe('buildChatRequest', () => {
         role: 'latest_reminder',
         content: '2026-11-22,星期日,上海,App,中文',
       },
-      {role: 'user', content: '<user_query>\n你好\n</user_query>'},
+      {
+        role: 'user',
+        content:
+          '<env_info>测试</env_info>\n\n<user_query>\n你好\n</user_query>',
+      },
       {
         role: 'assistant',
         content: '你好！',

@@ -34,7 +34,6 @@
     "react/exhaustive-deps": "warn",
     "jsx-a11y/no-autofocus": "off",
     "unicorn/no-array-sort": "off",
-    "unicorn/prefer-add-event-listener": "off",
     "eslint/no-await-in-loop": "off",
     "react/no-array-index-key": "off"
   },

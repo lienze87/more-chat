@@ -52,7 +52,7 @@
 
 - `latest_reminder`：按官方「用户元信息标记」发送日期、星期、所在地、平台、语言，每条 user 消息前一条，并随历史回传。
 - `<env_info>`：`buildEnvInfo` 在发送时生成，写入 `UserMessage.envInfo`，回放历史时保持当时的能力快照；只包含客户端版本、平台与可用工具，避免和 `latest_reminder` 重复同一事实。
-- `<user_query>`：`composeUserContent` 把用户正文包起来；更早版本的会话没有 `envInfo` 时只包 query。
+- `<user_query>` 包裹用户正文。回放会话时携带发送时保存的 `<env_info>` 快照。
 - `<attachments>`、`<additional_context>` 尚未实现，后续接入附件或工作区信息时按提示词约定扩展。
 
 ## 流式响应映射
@@ -144,12 +144,9 @@
 
 ## 传输实现说明
 
-React Native 的 `fetch` 并非所有运行时都暴露可读流，因此使用 `XMLHttpRequest` 的增量 `responseText`：
+传输层通过 `expo/fetch` 发送 POST 请求并从响应流读取字节。
 
-1. `readyState >= 3` 时读取新增文本；
-2. 交给 `SseParser` 按空行切分事件；
-3. 解析 JSON chunk；
-4. 收到 `[DONE]` 或连接结束即完成；
-5. 通过 `AbortSignal`/句柄中止。
-
-这样不依赖任何原生 SSE 库，且同时适用于新老架构。
+1. `TextDecoder` 跨分片解码 UTF-8。
+2. `SseParser` 按空行拆分事件，请求客户端解析 JSON。
+3. 收到 `[DONE]` 或响应流结束后收尾。
+4. 用户停止或请求超时时，通过 `AbortController` 中止请求。

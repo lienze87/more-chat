@@ -68,16 +68,16 @@ describe('client tool calls', () => {
         {
           tool_calls: [
             {
-              index: 0,
-              id: 'a',
-              type: 'function',
-              function: {name: 'one', arguments: ''},
-            },
-            {
               index: 1,
               id: 'b',
               type: 'function',
               function: {name: 'two', arguments: ''},
+            },
+            {
+              index: 0,
+              id: 'a',
+              type: 'function',
+              function: {name: 'one', arguments: ''},
             },
           ],
         },
@@ -205,7 +205,7 @@ describe('restoring client tool calls', () => {
     expect(message.status).toBe('aborted');
   });
 
-  it('fills defaults for conversations persisted before client tools existed', async () => {
+  it('skips records outside the current conversation schema', async () => {
     await AsyncStorage.setItem(
       STORAGE_KEYS.conversations,
       JSON.stringify([
@@ -233,10 +233,6 @@ describe('restoring client tool calls', () => {
       ]),
     );
 
-    const [conversation] = await conversationRepository.load();
-    const message = conversation.messages[0] as AssistantMessage;
-
-    expect(message.clientToolCalls).toEqual([]);
-    expect(message.status).toBe('complete');
+    await expect(conversationRepository.load()).resolves.toEqual([]);
   });
 });

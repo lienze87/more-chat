@@ -10,8 +10,8 @@ import {formatDuration} from '../../utils/text';
 interface ThinkingBlockProps {
   text: string;
   streaming: boolean;
-  /** 思考开始的绝对时间；缺省时不显示计时（兼容旧会话）。 */
-  startedAt?: number;
+  /** 思考开始的绝对时间。 */
+  startedAt: number;
   /** 思考结束的绝对时间；仍在生成时为空。 */
   endedAt?: number;
 }
@@ -45,12 +45,11 @@ export function ThinkingBlock({
     wasStreaming.current = streaming;
   }, [streaming]);
 
-  const elapsedMs =
-    typeof startedAt === 'number'
-      ? Math.max(0, (streaming ? now : (endedAt ?? now)) - startedAt)
-      : 0;
-  const showDuration =
-    typeof startedAt === 'number' && (streaming || typeof endedAt === 'number');
+  const elapsedMs = Math.max(
+    0,
+    (streaming ? now : (endedAt ?? now)) - startedAt,
+  );
+  const showDuration = streaming || endedAt !== undefined;
   const label = streaming ? '正在思考' : '已思考';
   const duration = showDuration ? `（用时 ${formatDuration(elapsedMs)}）` : '';
 

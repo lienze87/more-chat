@@ -29,6 +29,8 @@ const conversation = (
 const userMessage = (id: string, content: string): ChatMessage => ({
   id,
   role: 'user',
+  envInfo: '<env_info>测试</env_info>',
+  reminder: '2026-11-22,星期日,上海,App,中文',
   content,
   createdAt: 1,
   status: 'complete',

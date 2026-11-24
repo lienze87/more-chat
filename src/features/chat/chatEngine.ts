@@ -1,5 +1,5 @@
 import {Platform} from 'react-native';
-import {createId} from '../../domain/chat/ids';
+import {createId} from '../../utils/ids';
 import {
   buildEnvInfo,
   buildLatestReminder,
@@ -20,6 +20,9 @@ import {
 } from '../../config/appConfig';
 import {useChatStore} from './chatStore';
 import {useSettingsStore} from '../settings/settingsStore';
+import {createFileTools, fileToolPrompt} from '../extensions/fileTools';
+import {useSkillsStore} from '../extensions/skillsStore';
+import {DEFAULT_MODEL} from '../../domain/settings/types';
 import {createChatRunController} from './chatRun';
 
 const chatRun = createChatRunController({
@@ -67,6 +70,7 @@ function describeCapabilities(settings: {
   return [
     settings.webSearch ? '联网搜索' : null,
     settings.readUrl ? '阅读链接' : null,
+    '本地文件',
   ].filter((item): item is string => item !== null);
 }
 
@@ -82,10 +86,23 @@ async function runCompletion(params: {
     return;
   }
 
+  const model = settings.model.trim() || DEFAULT_MODEL;
+  const skills = useSkillsStore.getState().skills;
+  const fileTools = createFileTools(
+    skills,
+    model === 'deepseek-flash' || model === 'deepseek-v4-flash-vision-exp',
+  );
   await chatRun.start({
     conversationId,
     assistantId,
-    request: buildChatRequest({conversation, settings, isFirstTurn}),
+    request: buildChatRequest({
+      conversation,
+      settings,
+      isFirstTurn,
+      clientTools: fileTools.definitions,
+      toolPrompt: fileToolPrompt(skills),
+    }),
+    executeTool: fileTools.execute,
     apiKey,
     baseUrl: settings.baseUrl,
     timeoutMs: NETWORK_TIMEOUT_MS,

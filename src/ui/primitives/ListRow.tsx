@@ -62,6 +62,8 @@ export function ListRow({
       accessibilityRole={accessibilityRole}
       accessibilityLabel={label}
       accessibilityState={accessibilityState}
+      aria-checked={accessibilityState?.checked}
+      disabled={accessibilityState?.disabled}
       onPress={onPress}
       style={({pressed}) => [
         styles.row,

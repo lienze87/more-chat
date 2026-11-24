@@ -61,7 +61,11 @@ export function streamChatCompletion(
     timeoutMs,
     onEvent: event => {
       const data = event.data?.trim();
-      if (!data || data === '[DONE]') {
+      if (data === '[DONE]') {
+        transport?.abort();
+        return;
+      }
+      if (!data) {
         return;
       }
       let parsed: ChatCompletionChunk & {

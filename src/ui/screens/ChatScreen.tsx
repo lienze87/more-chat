@@ -201,19 +201,64 @@ export function ChatScreen({navigation}: Props) {
     [conversation, promptForApiKey],
   );
 
-  // 极端情况（设置页“清空全部对话”）下兜底，给出新建入口。
+  const header = (
+    <PageHeader
+      title={conversation?.title ?? 'MoreChat'}
+      leading={
+        <IconButton
+          name="menu"
+          tone="primary"
+          size="md"
+          iconSize={20}
+          accessibilityLabel="打开对话列表"
+          onPress={() => {
+            Keyboard.dismiss();
+            setDrawerVisible(true);
+          }}
+        />
+      }
+      trailing={
+        <IconButton
+          name="extensions"
+          tone="primary"
+          size="md"
+          iconSize={20}
+          accessibilityLabel="打开扩展管理"
+          onPress={() => navigation.navigate('Extensions')}
+        />
+      }
+    />
+  );
+  const drawer = (
+    <ConversationDrawer
+      visible={drawerVisible}
+      activeId={conversation?.id ?? null}
+      onClose={() => setDrawerVisible(false)}
+      onSelect={selectConversation}
+      onNewConversation={startNewConversation}
+      onDelete={removeConversation}
+      onRename={renameConversation}
+      onClearMessages={clearMessages}
+      onOpenFiles={() => {
+        setDrawerVisible(false);
+        navigation.navigate('Files');
+      }}
+      onOpenSettings={openSettings}
+    />
+  );
+
   if (!conversation) {
     return (
       <Screen edges={['top']}>
-        <PageHeader title="MoreChat" />
+        {header}
         <View style={styles.emptyWrap}>
           <EmptyState
             artwork={<Logo size={44} />}
             title="还没有对话"
-            description="点击下方按钮，开始你的第一段对话。"
-            action={{label: '新建对话', onPress: startNewConversation}}
+            description="打开左侧菜单，选择「新建对话」。"
           />
         </View>
+        {drawer}
       </Screen>
     );
   }
@@ -222,32 +267,7 @@ export function ChatScreen({navigation}: Props) {
 
   return (
     <Screen edges={['top']}>
-      <PageHeader
-        title={conversation.title}
-        leading={
-          <IconButton
-            name="menu"
-            tone="primary"
-            size="md"
-            iconSize={20}
-            accessibilityLabel="打开对话列表"
-            onPress={() => {
-              Keyboard.dismiss();
-              setDrawerVisible(true);
-            }}
-          />
-        }
-        trailing={
-          <IconButton
-            name="plus"
-            tone="primary"
-            size="md"
-            iconSize={20}
-            accessibilityLabel="新建对话"
-            onPress={startNewConversation}
-          />
-        }
-      />
+      {header}
 
       {/*
         键盘避让：Android 新版 edge-to-edge 下 `adjustResize` 不再缩小窗口，
@@ -353,16 +373,7 @@ export function ChatScreen({navigation}: Props) {
         </ContentColumn>
       </KeyboardAvoidingView>
 
-      <ConversationDrawer
-        visible={drawerVisible}
-        activeId={conversation.id}
-        onClose={() => setDrawerVisible(false)}
-        onSelect={selectConversation}
-        onDelete={removeConversation}
-        onRename={renameConversation}
-        onClearMessages={clearMessages}
-        onOpenSettings={openSettings}
-      />
+      {drawer}
     </Screen>
   );
 }

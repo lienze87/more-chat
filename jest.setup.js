@@ -2,3 +2,8 @@
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
+
+// Use Node's cryptographic RNG in place of the native Expo module in Jest.
+jest.mock('expo-crypto', () => ({
+  getRandomValues: bytes => require('node:crypto').randomFillSync(bytes),
+}));

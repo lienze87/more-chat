@@ -67,6 +67,8 @@ export type ServerToolEvent =
  */
 export interface ClientToolCall {
   id: string;
+  /** 模型流内的索引，用于匹配交错到达的参数分片。 */
+  index?: number;
   name: string;
   /** 流式期间持续拼接的 JSON 片段，执行前用 parseToolArguments 解析。 */
   argumentsText: string;
@@ -94,7 +96,7 @@ export type AssistantSegment =
       text: string;
       done?: boolean;
       /** 思考开始的绝对时间，用于在标签上显示计时。 */
-      startedAt?: number;
+      startedAt: number;
       /** 思考结束的绝对时间；仍在生成时为空。 */
       endedAt?: number;
     }
@@ -122,9 +124,18 @@ interface BaseMessage {
 export interface UserMessage extends BaseMessage {
   role: 'user';
   /** Value of the latest_reminder message sent right before this message. */
-  reminder?: string;
-  /** 发送时写入的 `<env_info>` 快照；更早版本的会话可能没有。 */
-  envInfo?: string;
+  reminder: string;
+  /** 发送时写入的 `<env_info>` 快照。 */
+  envInfo: string;
+}
+
+/** 一次客户端工具调用前的独立模型响应，供 API 按原顺序回放。 */
+export interface AssistantToolRound {
+  content: string;
+  reasoning: string;
+  serverToolCalls: ServerToolStep[];
+  clientToolCalls: ClientToolCall[];
+  segmentEnd: number;
 }
 
 export interface AssistantMessage extends BaseMessage {
@@ -135,6 +146,7 @@ export interface AssistantMessage extends BaseMessage {
   annotations: CitationAnnotation[];
   serverToolCalls: ServerToolStep[];
   clientToolCalls: ClientToolCall[];
+  toolRounds?: AssistantToolRound[];
   /** Step that the next reasoning delta belongs to. */
   activeStep: number;
   title?: string;

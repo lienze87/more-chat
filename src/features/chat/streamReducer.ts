@@ -198,7 +198,7 @@ function applyServerToolCalls(
 }
 
 /** 同步维护 clientToolCalls 与时间线上的 client_tool 片段。 */
-function upsertClientToolCall(
+export function upsertClientToolCall(
   message: AssistantMessage,
   call: ClientToolCall,
 ): AssistantMessage {
@@ -208,11 +208,16 @@ function upsertClientToolCall(
     calls[callIndex] = call;
   } else {
     calls.push(call);
+    calls.sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
   }
 
   const segments = message.segments.slice();
+  const start = message.toolRounds?.at(-1)?.segmentEnd ?? 0;
   const segmentIndex = segments.findIndex(
-    segment => segment.kind === 'client_tool' && segment.id === call.id,
+    (segment, index) =>
+      index >= start &&
+      segment.kind === 'client_tool' &&
+      segment.id === call.id,
   );
   const segment: AssistantSegment = {kind: 'client_tool', id: call.id, call};
   if (segmentIndex >= 0) {
@@ -239,10 +244,9 @@ function applyToolCallDeltas(
     segments: closeThinking(message.segments),
   };
   for (const delta of deltas) {
-    const byId = delta.id
+    const base = delta.id
       ? next.clientToolCalls.find(item => item.id === delta.id)
-      : undefined;
-    const base = byId ?? next.clientToolCalls[delta.index];
+      : next.clientToolCalls.find(item => item.index === delta.index);
     const id = delta.id ?? base?.id;
     if (!id) {
       // 没有 id 就无法把分片归到某次调用上，丢弃比猜更安全。
@@ -250,6 +254,7 @@ function applyToolCallDeltas(
     }
     next = upsertClientToolCall(next, {
       id,
+      index: delta.index,
       name: base?.name || delta.function?.name || '',
       argumentsText:
         (base?.argumentsText ?? '') + (delta.function?.arguments ?? ''),
@@ -267,6 +272,7 @@ export function deriveReasoning(message: AssistantMessage): string {
     return lastStep.reasoning_content;
   }
   return message.segments
+    .slice(message.toolRounds?.at(-1)?.segmentEnd ?? 0)
     .filter(segment => segment.kind === 'thinking')
     .map(
       segment =>
@@ -368,11 +374,33 @@ export function markAborted(message: AssistantMessage): AssistantMessage {
   if (message.status === 'complete' || message.status === 'refused') {
     return message;
   }
+  const next = markFailed(message, '工具调用已停止。');
+  return {...next, error: undefined, status: 'aborted'};
+}
+
+export function continueAfterTools(
+  message: AssistantMessage,
+): AssistantMessage {
   return {
     ...message,
-    status: 'aborted',
-    segments: closeThinking(message.segments),
-    reasoning: deriveReasoning(message),
+    status: 'streaming',
+    toolRounds: [
+      ...(message.toolRounds ?? []),
+      {
+        content: message.content,
+        reasoning: message.reasoning,
+        serverToolCalls: message.serverToolCalls,
+        clientToolCalls: message.clientToolCalls,
+        segmentEnd: message.segments.length,
+      },
+    ],
+    content: '',
+    reasoning: '',
+    serverToolCalls: [],
+    clientToolCalls: [],
+    annotations: [],
+    activeStep: 0,
+    usage: undefined,
   };
 }
 

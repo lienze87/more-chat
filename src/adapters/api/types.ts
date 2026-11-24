@@ -25,7 +25,25 @@ export type ApiMessage =
       tool_calls?: ApiToolCall[];
     }
   /** 客户端工具的返回值，必须紧跟触发它的 assistant.tool_calls。 */
-  | {role: 'tool'; tool_call_id: string; content: string};
+  | {
+      role: 'tool';
+      tool_call_id: string;
+      content:
+        | string
+        | (
+            | {type: 'text'; text: string}
+            | {type: 'image_url'; image_url: {url: string}}
+          )[];
+    };
+
+export interface ApiFunctionTool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
 
 export interface ChatCompletionRequest {
   model: string;
@@ -33,7 +51,10 @@ export interface ChatCompletionRequest {
   stream: true;
   thinking?: {type: 'enabled' | 'disabled'};
   reasoning_effort?: ReasoningEffort;
-  tools?: {type: 'deepseek_web_search' | 'deepseek_read_url'}[];
+  tools?: (
+    | ApiFunctionTool
+    | {type: 'deepseek_web_search' | 'deepseek_read_url'}
+  )[];
   safety_check?: {level: SafetyLevel};
   title?: {enabled: boolean};
   max_tokens?: number;

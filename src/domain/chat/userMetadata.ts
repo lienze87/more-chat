@@ -107,9 +107,7 @@ export function buildEnvInfo({
   ].join('\n');
 }
 
-/** 把用户正文包进 `<user_query>`，并在需要时带上 `<env_info>` 快照。 */
-export function composeUserContent(content: string, envInfo?: string): string {
-  const snapshot = envInfo?.trim();
-  const query = `<user_query>\n${content}\n</user_query>`;
-  return snapshot ? `${snapshot}\n\n${query}` : query;
+/** 使用发送时固化的环境快照构建用户消息正文。 */
+export function composeUserContent(content: string, envInfo: string): string {
+  return `${envInfo.trim()}\n\n<user_query>\n${content}\n</user_query>`;
 }

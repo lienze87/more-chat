@@ -35,7 +35,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       credentialsRepository.load().then(
         apiKey => ({apiKey, apiKeyError: null}),
         () => ({
-          apiKeyError: '无法读取或迁移 API Key，请重新打开应用或重新保存。',
+          apiKeyError: '无法读取 API Key，请重新打开应用或重新保存。',
         }),
       ),
     ]);

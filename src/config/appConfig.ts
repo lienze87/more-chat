@@ -3,7 +3,6 @@ export const APP_VERSION = '0.1.0';
 export const STORAGE_KEYS = {
   settings: '@morechat/settings/v1',
   conversations: '@morechat/conversations/v1',
-  credentials: '@morechat/credentials/v1',
 } as const;
 
 export const MAX_INPUT_LENGTH = 8000;

@@ -37,7 +37,7 @@
 | 状态   | Zustand 5                                                                  |
 | 存储   | AsyncStorage（Web 端落地为 localStorage）                                  |
 | 渲染   | react-native-markdown-display                                              |
-| 网络   | XMLHttpRequest 增量读取（SSE 解析自研，无额外依赖）                        |
+| 网络   | Expo Fetch 可读流与 SSE 解析                                               |
 | Web    | react-native-web + Metro                                                   |
 | 检查   | oxlint（lint）+ oxfmt（format），配置见 `.oxlintrc.json` / `.oxfmtrc.json` |
 
@@ -72,7 +72,7 @@ pnpm export:web           # 输出静态站点到 dist/
 
 - `react-native-web` 负责渲染，`AsyncStorage` 在浏览器中使用 `localStorage`。
 - `api.deepseek.com` 已返回 CORS 头，浏览器可直连；若换成自建代理，需要允许 `http://localhost:8081` 的跨域请求。
-- 原生 `Alert` 在 Web 上是空实现：确认框与操作菜单走应用内 `DialogHost`（`src/ui/primitives/Dialog.tsx`）；复制走 `src/utils/clipboard.ts`（Web 用 `navigator.clipboard`，原生用 `react-native` 的 `Clipboard`）。
+- 确认框与操作菜单使用应用内 `DialogHost`。Web 复制使用浏览器 Clipboard API，需要 HTTPS 或 localhost。原生复制使用 `expo-clipboard`。
 
 ### Expo 远程调试（真机 / 隧道）
 
@@ -160,7 +160,7 @@ plugins/          Expo config plugins（Android SDK / NDK / CMake 版本）
 
 ## 安全与合规
 
-- 原生端使用 `expo-secure-store` 保存 API Key。升级时先将旧 Key 写入系统凭据存储，成功后再删除 AsyncStorage 中的旧值。Web 端会删除旧版浏览器存储中的 Key。
+- 原生端使用 `expo-secure-store` 保存 API Key。Web 端的 API Key 仅存于当前页面内存。
 - 对外提供服务时应开启 `safety_check`，并按 DeepSeek 开放平台协议履行内容审核、大模型登记与 AI 标识等义务。
 - 模型输出仅供参考，应用内已提示「内容由 AI 生成」。
 

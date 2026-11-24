@@ -20,6 +20,7 @@ interface Modules {
   chat: StoreModule;
   settings: SettingsModule;
   errors: ErrorsModule;
+  skills: typeof import('../src/features/extensions/skillsStore');
 }
 
 /**
@@ -46,6 +47,9 @@ function loadModules(): Modules {
     );
     modules.errors = jest.requireActual<ErrorsModule>(
       '../src/adapters/api/errors',
+    );
+    modules.skills = jest.requireActual(
+      '../src/features/extensions/skillsStore',
     );
   });
   return modules;
@@ -314,6 +318,151 @@ describe('chatEngine', () => {
     expect(chat.useChatStore.getState().streaming).toBeNull();
   });
 
+  it('loads skill instructions and continues through text and image tool rounds', async () => {
+    const {client, chat, engine, skills, abort} = setup();
+    skills.useSkillsStore.setState({
+      skills: [
+        {
+          name: 'notes',
+          description: '整理笔记',
+          enabled: true,
+          files: {'SKILL.md': '# 整理笔记', 'example.png': 'iVBORw=='},
+        },
+      ],
+    });
+
+    const pending = engine.sendMessage('c1', '请整理笔记');
+    const first = lastStreamOptions(client);
+    expect(first.request.messages[0].content).toContain(
+      'skills/notes/SKILL.md',
+    );
+    expect(first.request.tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'function',
+          function: expect.objectContaining({name: 'read_file'}),
+        }),
+        {type: 'deepseek_web_search'},
+      ]),
+    );
+
+    const finishWithCall = (
+      stream: StreamChatOptions,
+      name: string,
+      path: string,
+      reasoning: string,
+    ) => {
+      const next = new Promise<StreamChatOptions>(resolve => {
+        client.streamChatCompletion.mockImplementationOnce(
+          (opts: StreamChatOptions) => {
+            resolve(opts);
+            return {abort};
+          },
+        );
+      });
+      stream.onChunk(
+        chunk(
+          {
+            reasoning_content: reasoning,
+            tool_calls: [
+              {
+                index: 0,
+                id: name,
+                function: {name, arguments: JSON.stringify({path})},
+              },
+            ],
+          },
+          'tool_calls',
+        ),
+      );
+      stream.onDone();
+      return next;
+    };
+
+    const second = await finishWithCall(
+      first,
+      'read_file',
+      'skills/notes/SKILL.md',
+      '读取说明',
+    );
+    expect(second.request.title).toBeUndefined();
+    expect(turnsOf(second).slice(-2)).toMatchObject([
+      {
+        role: 'assistant',
+        reasoning_content: '读取说明',
+        tool_calls: [{id: 'read_file'}],
+      },
+      {
+        role: 'tool',
+        tool_call_id: 'read_file',
+        content: expect.stringContaining('# 整理笔记'),
+      },
+    ]);
+
+    const third = await finishWithCall(
+      second,
+      'read_image',
+      'skills/notes/example.png',
+      '查看图片',
+    );
+    expect(turnsOf(third).slice(-4)).toMatchObject([
+      {role: 'assistant', reasoning_content: '读取说明'},
+      {role: 'tool', tool_call_id: 'read_file'},
+      {
+        role: 'assistant',
+        reasoning_content: '查看图片',
+        tool_calls: [{id: 'read_image'}],
+      },
+      {
+        role: 'tool',
+        tool_call_id: 'read_image',
+        content: [
+          {type: 'text'},
+          {
+            type: 'image_url',
+            image_url: {url: 'data:image/png;base64,iVBORw=='},
+          },
+        ],
+      },
+    ]);
+    expect(chat.useChatStore.getState().streaming?.messageId).toBe(
+      assistantOf(chat).id,
+    );
+    third.onChunk(
+      chunk({reasoning_content: '总结', content: '笔记已整理'}, 'stop'),
+    );
+    third.onDone();
+    await pending;
+
+    const answer = assistantOf(chat);
+    expect(answer).toMatchObject({
+      status: 'complete',
+      content: '笔记已整理',
+      reasoning: '总结',
+    });
+    expect(answer.toolRounds).toHaveLength(2);
+    expect(
+      answer.segments.filter(segment => segment.kind === 'client_tool'),
+    ).toHaveLength(2);
+    expect(chat.useChatStore.getState().conversations[0].messages).toHaveLength(
+      2,
+    );
+
+    await chat.flushConversations();
+    await chat.useChatStore.getState().hydrate();
+    expect(assistantOf(chat).toolRounds).toHaveLength(2);
+    const followup = engine.sendMessage('c1', '继续');
+    const fourth = lastStreamOptions(client);
+    expect(
+      fourth.request.messages.find(
+        message =>
+          message.role === 'tool' && message.tool_call_id === 'read_image',
+      ),
+    ).toMatchObject({content: '已读取图片 skills/notes/example.png'});
+    fourth.onDone();
+    await followup;
+  });
+
   it('keeps truncation and refusal apart from normal completion', async () => {
     const truncated = setup();
     const first = truncated.engine.sendMessage('c1', '你好');
@@ -359,6 +508,8 @@ describe('chatEngine', () => {
           {
             id: 'u1',
             role: 'user',
+            envInfo: '<env_info>测试</env_info>',
+            reminder: '2026-11-22,星期日,上海,App,中文',
             content: '问题',
             createdAt: 1,
             status: 'complete',
@@ -381,7 +532,12 @@ describe('chatEngine', () => {
     expect(messages[0].id).toBe('u1');
     expect((messages[1] as AssistantMessage).status).toBe('streaming');
     expect(turnsOf(options)).toEqual([
-      {role: 'user', content: '<user_query>\n问题\n</user_query>'},
+      {role: 'latest_reminder', content: '2026-11-22,星期日,上海,App,中文'},
+      {
+        role: 'user',
+        content:
+          '<env_info>测试</env_info>\n\n<user_query>\n问题\n</user_query>',
+      },
     ]);
 
     options.onDone();
@@ -395,6 +551,8 @@ describe('chatEngine', () => {
           {
             id: 'u1',
             role: 'user',
+            envInfo: '<env_info>测试</env_info>',
+            reminder: '2026-11-22,星期日,上海,App,中文',
             content: '第一问',
             createdAt: 1,
             status: 'complete',
@@ -408,6 +566,8 @@ describe('chatEngine', () => {
           {
             id: 'u2',
             role: 'user',
+            envInfo: '<env_info>测试</env_info>',
+            reminder: '2026-11-22,星期日,上海,App,中文',
             content: '第二问',
             createdAt: 1,
             status: 'complete',
@@ -432,7 +592,12 @@ describe('chatEngine', () => {
       expect.any(String),
     ]);
     expect(turnsOf(options)).toEqual([
-      {role: 'user', content: '<user_query>\n第一问\n</user_query>'},
+      {role: 'latest_reminder', content: '2026-11-22,星期日,上海,App,中文'},
+      {
+        role: 'user',
+        content:
+          '<env_info>测试</env_info>\n\n<user_query>\n第一问\n</user_query>',
+      },
     ]);
 
     options.onDone();

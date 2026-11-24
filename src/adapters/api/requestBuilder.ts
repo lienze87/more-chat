@@ -1,20 +1,32 @@
-import type {ClientToolCall, Conversation} from '../../domain/chat/types';
+import type {
+  AssistantToolRound,
+  ClientToolCall,
+  Conversation,
+} from '../../domain/chat/types';
 import type {Settings} from '../../domain/settings/types';
 import {DEFAULT_MODEL} from '../../domain/settings/types';
 import {composeUserContent} from '../../domain/chat/userMetadata';
 import {buildSystemPrompt} from '../../config/defaultSystemPrompt';
-import type {ApiMessage, ApiToolCall, ChatCompletionRequest} from './types';
+import type {
+  ApiFunctionTool,
+  ApiMessage,
+  ApiToolCall,
+  ChatCompletionRequest,
+} from './types';
 
 export interface BuildRequestOptions {
   conversation: Conversation;
   settings: Settings;
   /** True before the conversation has produced a complete answer. */
   isFirstTurn: boolean;
+  clientTools?: ApiFunctionTool[];
+  toolPrompt?: string;
 }
 
 export function buildApiMessages(
   conversation: Conversation,
   systemPrompt?: string,
+  imageResults?: ReadonlyMap<string, string>,
 ): ApiMessage[] {
   const messages: ApiMessage[] = [];
   const system = systemPrompt?.trim();
@@ -24,9 +36,7 @@ export function buildApiMessages(
 
   for (const message of conversation.messages) {
     if (message.role === 'user') {
-      if (message.reminder) {
-        messages.push({role: 'latest_reminder', content: message.reminder});
-      }
+      messages.push({role: 'latest_reminder', content: message.reminder});
       // 环境快照与用户请求分开包裹：历史消息回放时仍保留当时的环境。
       messages.push({
         role: 'user',
@@ -35,46 +45,64 @@ export function buildApiMessages(
       continue;
     }
 
-    // Do not replay failed or refused turns: they carry no usable context.
-    if (message.status === 'error' || message.status === 'refused') {
-      continue;
+    for (const round of message.toolRounds ?? []) {
+      appendAssistantRound(messages, round, imageResults);
     }
-    const hasContent = message.content.trim().length > 0;
-    const hasTools = message.serverToolCalls.length > 0;
-    const clientCalls = message.clientToolCalls.filter(
-      call => call.status !== 'running',
-    );
-    const hasClientTools = clientCalls.length > 0;
-    if (!hasContent && !hasTools && !hasClientTools) {
-      continue;
-    }
-
-    const assistant: Extract<ApiMessage, {role: 'assistant'}> = {
-      role: 'assistant',
-      content: message.content,
-    };
-    if (message.reasoning) {
-      assistant.reasoning_content = message.reasoning;
-    }
-    if (hasTools) {
-      assistant.server_tool_calls = message.serverToolCalls;
-    }
-    if (hasClientTools) {
-      assistant.tool_calls = clientCalls.map(toApiToolCall);
-    }
-    messages.push(assistant);
-
-    // 客户端工具的返回值必须紧跟在触发它的 assistant 之后，否则服务端会拒收。
-    for (const call of clientCalls) {
-      const result = toolResultContent(call);
-      if (result === null) {
-        continue;
-      }
-      messages.push({role: 'tool', tool_call_id: call.id, content: result});
+    if (message.status !== 'error' && message.status !== 'refused') {
+      appendAssistantRound(messages, message, imageResults);
     }
   }
 
   return messages;
+}
+
+function appendAssistantRound(
+  messages: ApiMessage[],
+  round: Omit<AssistantToolRound, 'segmentEnd'>,
+  imageResults?: ReadonlyMap<string, string>,
+): void {
+  const clientCalls = round.clientToolCalls.filter(
+    call => call.status !== 'running',
+  );
+  const hasServerTools = round.serverToolCalls.length > 0;
+  if (!round.content.trim() && !hasServerTools && !clientCalls.length) {
+    return;
+  }
+
+  const assistant: Extract<ApiMessage, {role: 'assistant'}> = {
+    role: 'assistant',
+    content: round.content,
+  };
+  if (round.reasoning) {
+    assistant.reasoning_content = round.reasoning;
+  }
+  if (hasServerTools) {
+    assistant.server_tool_calls = round.serverToolCalls;
+  }
+  if (clientCalls.length) {
+    assistant.tool_calls = clientCalls.map(toApiToolCall);
+  }
+  messages.push(assistant);
+
+  for (const call of clientCalls) {
+    const text =
+      call.status === 'completed'
+        ? (call.result ?? '')
+        : call.error
+          ? `错误：${call.error}`
+          : '工具执行失败';
+    const url = imageResults?.get(call.id);
+    messages.push({
+      role: 'tool',
+      tool_call_id: call.id,
+      content: url
+        ? [
+            {type: 'text', text},
+            {type: 'image_url', image_url: {url}},
+          ]
+        : text,
+    });
+  }
 }
 
 const toApiToolCall = (call: ClientToolCall): ApiToolCall => ({
@@ -83,28 +111,21 @@ const toApiToolCall = (call: ClientToolCall): ApiToolCall => ({
   function: {name: call.name, arguments: call.argumentsText || '{}'},
 });
 
-/** 只有执行完成的调用才有可回传的内容；仍在运行的不补空结果。 */
-const toolResultContent = (call: ClientToolCall): string | null => {
-  if (call.status === 'completed') {
-    return call.result ?? '';
-  }
-  if (call.status === 'failed') {
-    return call.error ? `错误：${call.error}` : '工具执行失败';
-  }
-  return null;
-};
-
 export function buildChatRequest({
   conversation,
   settings,
   isFirstTurn,
+  clientTools = [],
+  toolPrompt,
 }: BuildRequestOptions): ChatCompletionRequest {
   const request: ChatCompletionRequest = {
     model: settings.model.trim() || DEFAULT_MODEL,
     // 内置提示词始终发送，设置页内容只是追加在它后面的附加要求。
     messages: buildApiMessages(
       conversation,
-      buildSystemPrompt(settings.systemPrompt),
+      [buildSystemPrompt(settings.systemPrompt), toolPrompt]
+        .filter(Boolean)
+        .join('\n\n'),
     ),
     stream: true,
     thinking: {type: settings.thinking ? 'enabled' : 'disabled'},
@@ -115,7 +136,7 @@ export function buildChatRequest({
     request.reasoning_effort = settings.reasoningEffort;
   }
 
-  const tools: ChatCompletionRequest['tools'] = [];
+  const tools: ChatCompletionRequest['tools'] = [...clientTools];
   if (settings.webSearch) {
     tools.push({type: 'deepseek_web_search'});
   }
@@ -139,5 +160,6 @@ export const isFirstTurnOf = (conversation: Conversation): boolean =>
       message.role === 'assistant' &&
       (message.content.trim().length > 0 ||
         message.serverToolCalls.length > 0 ||
-        message.clientToolCalls.length > 0),
+        message.clientToolCalls.length > 0 ||
+        !!message.toolRounds?.length),
   );

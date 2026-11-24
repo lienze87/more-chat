@@ -21,6 +21,7 @@ import {AppText} from '../ui/primitives/AppText';
 import {DialogHost} from '../ui/primitives/Dialog';
 import {ThemeProvider, useTheme} from '../ui/theme/ThemeProvider';
 import {RootNavigator} from './navigation/RootNavigator';
+import {useSkillsStore} from '../features/extensions/skillsStore';
 
 export function AppRoot() {
   const [ready, setReady] = useState(false);
@@ -31,6 +32,7 @@ export function AppRoot() {
     Promise.all([
       useSettingsStore.getState().hydrate(),
       useChatStore.getState().hydrate(),
+      useSkillsStore.getState().hydrate(),
     ])
       .then(() => {
         // 进入应用默认落到一段新对话上（复用已有的空白对话，避免堆积）。

@@ -6,18 +6,25 @@ import type {
   StreamChatHandle,
   StreamChatOptions,
 } from '../../adapters/api/chatClient';
+import {buildApiMessages} from '../../adapters/api/requestBuilder';
 import {describeError} from '../../adapters/api/errors';
-import type {AssistantMessage, Conversation} from '../../domain/chat/types';
-import {applyFinishReason, markAborted, markFailed} from './streamReducer';
+import type {
+  AssistantMessage,
+  ClientToolCall,
+  Conversation,
+} from '../../domain/chat/types';
+import type {FileToolResult} from '../extensions/fileTools';
+import {
+  applyFinishReason,
+  continueAfterTools,
+  markAborted,
+  markFailed,
+  upsertClientToolCall,
+} from './streamReducer';
 
 interface ActiveRun extends StreamingState {
   cancel: () => void;
 }
-
-type RunOutcome =
-  | {kind: 'done'}
-  | {kind: 'aborted'}
-  | {kind: 'error'; error: unknown};
 
 export interface StreamingState {
   conversationId: string;
@@ -60,6 +67,10 @@ export interface ChatRunRequest {
   apiKey: string;
   baseUrl: string;
   timeoutMs: number;
+  executeTool: (
+    call: ClientToolCall,
+    signal: AbortSignal,
+  ) => Promise<FileToolResult>;
 }
 
 export interface ChatRunController {
@@ -73,164 +84,228 @@ export interface ChatRunController {
 }
 
 const FLUSH_INTERVAL_MS = 40;
+const MAX_TOOL_ROUNDS = 8;
+const MAX_CALLS_PER_ROUND = 8;
 
 export function createChatRunController(deps: ChatRunDeps): ChatRunController {
   let active: ActiveRun | null = null;
-  let pending: ChatCompletionChunk[] = [];
-  let flushTimer: unknown = null;
 
-  const findConversation = (conversationId: string): Conversation | undefined =>
-    deps.getConversations().find(item => item.id === conversationId);
+  function streamRound(
+    run: ChatRunRequest,
+    request: ChatCompletionRequest,
+    signal: AbortSignal,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let pending: ChatCompletionChunk[] = [];
+      let timer: unknown = null;
+      let handle: StreamChatHandle | undefined;
+      let finished = false;
 
-  const findMessage = (
-    conversationId: string,
-    messageId: string,
-  ): AssistantMessage | undefined => {
-    const message = findConversation(conversationId)?.messages.find(
-      item => item.id === messageId,
-    );
-    return message && message.role === 'assistant' ? message : undefined;
-  };
-
-  const clearFlushTimer = (): void => {
-    if (flushTimer !== null) {
-      deps.timer.clear(flushTimer);
-      flushTimer = null;
-    }
-  };
-
-  /**
-   * 把缓冲的 chunk 一次性写进 store。
-   *
-   * 流式期间每 40ms 才触发一次 React 更新与 Markdown 重排，而不是每个 token。
-   */
-  const flush = (): void => {
-    clearFlushTimer();
-    if (!active || pending.length === 0) {
-      pending = [];
-      return;
-    }
-    const chunks = pending;
-    pending = [];
-    deps.appendAssistantChunks(active.conversationId, active.messageId, chunks);
-  };
-
-  const scheduleFlush = (): void => {
-    if (flushTimer !== null) {
-      return;
-    }
-    flushTimer = deps.timer.set(() => {
-      flushTimer = null;
-      flush();
-    }, FLUSH_INTERVAL_MS);
-  };
-
-  const start = (run: ChatRunRequest): Promise<void> =>
-    new Promise<void>((resolve, reject) => {
-      const {conversationId, assistantId} = run;
-      const state: {handle?: StreamChatHandle; outcome?: RunOutcome} = {};
-      const current: ActiveRun = {
-        conversationId,
-        messageId: assistantId,
-        cancel: () => {
-          if (state.outcome) {
-            return;
-          }
-          finish({kind: 'aborted'});
-          state.handle?.abort();
-        },
+      const flush = () => {
+        if (timer !== null) {
+          deps.timer.clear(timer);
+          timer = null;
+        }
+        if (pending.length) {
+          const chunks = pending;
+          pending = [];
+          deps.appendAssistantChunks(
+            run.conversationId,
+            run.assistantId,
+            chunks,
+          );
+        }
       };
 
-      function finish(result: RunOutcome): void {
-        if (active !== current || state.outcome) {
+      const finish = (error?: unknown) => {
+        if (finished) {
           return;
         }
-        state.outcome = result;
+        finished = true;
+        signal.removeEventListener('abort', abort);
         try {
           flush();
-          const message = findMessage(conversationId, assistantId);
-          if (message) {
-            deps.updateAssistantMessage(
-              conversationId,
-              assistantId,
-              previous => {
-                if (result.kind === 'aborted') {
-                  return markAborted(previous);
-                }
-                if (
-                  previous.status === 'complete' ||
-                  previous.status === 'refused'
-                ) {
-                  return previous;
-                }
-                if (result.kind === 'error') {
-                  return markFailed(previous, describeError(result.error));
-                }
-                if (previous.status === 'awaiting_tool') {
-                  return markFailed(
-                    previous,
-                    '当前版本无法执行客户端工具，请重新生成。',
-                  );
-                }
-                return applyFinishReason(previous, 'stop');
-              },
-            );
-            if (result.kind !== 'error' && message.title) {
-              deps.applyAutoTitle(conversationId, message.title);
-            }
+          if (error !== undefined) {
+            reject(error);
+          } else {
+            resolve();
           }
-          resolve();
-        } catch (error) {
-          reject(error);
-        } finally {
-          active = null;
-          deps.setStreaming(null);
+        } catch (flushError) {
+          reject(flushError);
         }
-      }
+      };
 
-      active = current;
-      deps.setStreaming({conversationId, messageId: assistantId});
-      if (active !== current) {
-        return;
-      }
+      const abort = () => {
+        finish();
+        handle?.abort();
+      };
+      signal.addEventListener('abort', abort);
 
       try {
-        state.handle = deps.stream({
+        handle = deps.stream({
           apiKey: run.apiKey,
           baseUrl: run.baseUrl,
-          request: run.request,
+          request,
           timeoutMs: run.timeoutMs,
           onChunk: chunk => {
-            if (active === current && !state.outcome) {
-              pending.push(chunk);
-              scheduleFlush();
+            if (finished) {
+              return;
+            }
+            pending.push(chunk);
+            if (timer === null) {
+              timer = deps.timer.set(() => {
+                timer = null;
+                try {
+                  flush();
+                } catch (error) {
+                  finish(error);
+                  handle?.abort();
+                }
+              }, FLUSH_INTERVAL_MS);
             }
           },
-          onDone: () => finish({kind: 'done'}),
-          onError: error => finish({kind: 'error', error}),
+          onDone: () => finish(),
+          onError: finish,
         });
-        if (state.outcome?.kind === 'aborted') {
-          state.handle.abort();
+        if (signal.aborted) {
+          handle.abort();
         }
       } catch (error) {
-        finish({kind: 'error', error});
+        finish(error);
       }
     });
+  }
 
-  const cancelConversation = (conversationId: string | null): void => {
-    if (!active) {
+  async function start(run: ChatRunRequest): Promise<void> {
+    if (active) {
       return;
     }
-    if (conversationId !== null && active.conversationId !== conversationId) {
-      return;
+    const {conversationId, assistantId} = run;
+    const controller = new AbortController();
+    const {signal} = controller;
+    active = {
+      conversationId,
+      messageId: assistantId,
+      cancel: () => controller.abort(),
+    };
+    const conversation = () =>
+      deps.getConversations().find(item => item.id === conversationId);
+    const assistant = () =>
+      conversation()?.messages.find(
+        (item): item is AssistantMessage =>
+          item.id === assistantId && item.role === 'assistant',
+      );
+    const update = (updater: (message: AssistantMessage) => AssistantMessage) =>
+      deps.updateAssistantMessage(conversationId, assistantId, updater);
+
+    try {
+      deps.setStreaming({conversationId, messageId: assistantId});
+      const system = run.request.messages[0];
+      const imageResults = new Map<string, string>();
+      const supported = new Set(
+        (run.request.tools ?? []).flatMap(tool =>
+          tool.type === 'function' ? [tool.function.name] : [],
+        ),
+      );
+      let request = run.request;
+      for (let round = 0; !signal.aborted; round += 1) {
+        await streamRound(run, request, signal);
+        if (signal.aborted) {
+          break;
+        }
+        const message = assistant();
+        if (!message) {
+          break;
+        }
+        if (message.status !== 'awaiting_tool') {
+          if (message.status === 'streaming') {
+            update(previous =>
+              previous.clientToolCalls.some(call => call.status === 'running')
+                ? markFailed(previous, '工具调用未完整返回，请重试。')
+                : applyFinishReason(previous, 'stop'),
+            );
+          }
+          if (message.title) {
+            deps.applyAutoTitle(conversationId, message.title);
+          }
+          break;
+        }
+        const calls = message.clientToolCalls;
+        if (!calls.length || calls.some(call => !supported.has(call.name))) {
+          throw new Error('模型请求了不可用的客户端工具。');
+        }
+        if (round >= MAX_TOOL_ROUNDS || calls.length > MAX_CALLS_PER_ROUND) {
+          throw new Error('本次回答已达到工具调用上限。');
+        }
+
+        for (const call of calls) {
+          let result: ClientToolCall;
+          try {
+            const output = await run.executeTool(call, signal);
+            if (output.imageUrl) {
+              imageResults.set(call.id, output.imageUrl);
+            }
+            result = {...call, status: 'completed', result: output.text};
+          } catch (error) {
+            result = {...call, status: 'failed', error: describeError(error)};
+          }
+          if (signal.aborted) {
+            break;
+          }
+          update(previous => upsertClientToolCall(previous, result));
+        }
+        if (signal.aborted) {
+          break;
+        }
+        update(continueAfterTools);
+        const current = conversation();
+        if (!current) {
+          break;
+        }
+        request = {
+          ...run.request,
+          messages: buildApiMessages(
+            current,
+            system?.role === 'system' ? system.content : undefined,
+            imageResults,
+          ),
+          title: undefined,
+        };
+      }
+      if (signal.aborted) {
+        update(markAborted);
+        const title = assistant()?.title;
+        if (title) {
+          deps.applyAutoTitle(conversationId, title);
+        }
+      }
+    } catch (error) {
+      update(previous => {
+        if (signal.aborted) {
+          return markAborted(previous);
+        }
+        if (previous.status === 'complete' || previous.status === 'refused') {
+          return previous;
+        }
+        return markFailed(previous, describeError(error));
+      });
+    } finally {
+      active = null;
+      deps.setStreaming(null);
     }
-    active.cancel();
-  };
+  }
 
   return {
     start,
     cancel: () => active?.cancel(),
-    cancelConversation,
+    cancelConversation: conversationId => {
+      if (
+        active &&
+        (conversationId === null || active.conversationId === conversationId)
+      ) {
+        active.cancel();
+      }
+    },
     isRunning: () => active !== null,
   };
 }

@@ -21,6 +21,7 @@ export interface IconButtonProps {
   iconSize?: number;
   tone?: IconTone;
   hitSlop?: number;
+  disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -33,6 +34,7 @@ export function IconButton({
   iconSize,
   tone = 'secondary',
   hitSlop = 8,
+  disabled = false,
   style,
 }: IconButtonProps) {
   const theme = useTheme();
@@ -45,6 +47,8 @@ export function IconButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{disabled}}
+      disabled={disabled}
       hitSlop={hitSlop}
       onPress={onPress}
       style={({pressed}) => [
@@ -55,7 +59,7 @@ export function IconButton({
           height: dimension,
           borderRadius: radius.md,
           backgroundColor: 'transparent',
-          opacity: pressed ? 0.6 : 1,
+          opacity: disabled ? 0.45 : pressed ? 0.6 : 1,
         },
         style,
       ]}

@@ -62,7 +62,7 @@ ChatScreen.submit
        ├─ buildChatRequest（默认提示词 + 设置页附加提示词，按设置拼 tools / thinking / safety / title）
        └─ chatRun.start（createChatRunController）
             ├─ streamChatCompletion
-            │    └─ openSseTransport（XHR 增量 responseText）
+            │    └─ openSseTransport（Expo Fetch 可读流）
             │         └─ SseParser → JSON chunk → onChunk
             ├─ 40ms 批量 flush → chatStore.appendAssistantChunks
             │    └─ applyStreamChunk（纯函数）
@@ -74,7 +74,7 @@ ChatScreen.submit
 
 `chatRun` 管理当前运行、缓冲队列与 40ms 定时器，并向 store 同步界面使用的
 `streaming` 标记。完成、失败、启动异常和主动停止共用收尾逻辑。删除或清空对话时，
-`chatEngine` 先取消对应的运行，再修改会话数据。主动停止会中止 XHR，并忽略该轮迟到的回调。
+`chatEngine` 先取消对应的运行，再修改会话数据。主动停止通过 AbortController 中止请求，并忽略该轮迟到的回调。
 
 设计要点：
 
@@ -86,19 +86,19 @@ ChatScreen.submit
 
 ## 持久化
 
-- AsyncStorage 存放 `settings` 和 `conversations`。`credentials` 是旧版迁移使用的键。
+- AsyncStorage 存放 `settings` 和 `conversations`。
 - 会话写入使用 `createThrottledSaver`：流式期间合并写，最多 1.2s 落盘一次；应用退到后台时强制 flush。
-- 读取时做结构校验，历史中断（status=streaming）会被修复为 aborted。
+- 读取时校验当前会话结构，并将中断的生成和工具调用收尾。
 - 原生端通过 `credentialsRepository` 将 API Key 保存至 SecureStore，Web 端由
-  `settingsStore` 在内存中持有。两端会清理旧版保存在 AsyncStorage 中的凭据。
+  `credentialsRepository.web.ts` 在页面内存中持有。
 
 ## 主题与自适应
 
 - `ThemeProvider` 读取系统配色与设置，提供语义色板（背景、表面、边框、强调色等）。
 - 页面使用 `react-native-safe-area-context` 处理刘海与手势条；输入框底部自适应 inset。
 - Android 使用 edge-to-edge 模板配置（由 `expo prebuild` 生成）。edge-to-edge 下键盘不再缩小窗口，首页用 `KeyboardAvoidingView`（`behavior="padding"`）把输入区顶到键盘上方。
-- Web 端由 `react-native-web` 渲染：`Alert` 在 RNW 中是空实现；确认框与操作菜单统一走 `DialogHost`，`Linking` 打开外链。
-- 消息脚注提供「复制 / 重新生成」两个操作：复制走 `src/utils/clipboard.ts`（Web 用 `navigator.clipboard`，原生用 RN 内置 `Clipboard`，后续可换成 `expo-clipboard`）；重新生成从该条回复开始截断并重写后续轮次。
+- Web 端由 `react-native-web` 渲染。确认框和操作菜单统一由 `DialogHost` 使用 `Modal` 展示，外链使用 `Linking` 打开。
+- 原生端通过 `expo-clipboard` 复制回复。Web 端使用浏览器的 Clipboard API。重新生成从选中的回复开始截断并重写后续轮次。
 
 ## 扩展点
 

@@ -6,7 +6,7 @@ import type {
 } from '../../domain/chat/types';
 import {applyStreamChunk} from './streamReducer';
 import type {ChatCompletionChunk} from '../../adapters/api/types';
-import {createId} from '../../domain/chat/ids';
+import {createId} from '../../utils/ids';
 import {conversationRepository} from '../../adapters/data/repositories/conversationRepository';
 import {createThrottledSaver} from '../../adapters/data/persistence';
 import {fallbackTitle} from '../../utils/text';

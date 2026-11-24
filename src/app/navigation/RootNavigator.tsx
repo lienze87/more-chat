@@ -2,6 +2,9 @@ import React from 'react';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {ChatScreen} from '../../ui/screens/ChatScreen';
 import {SettingsScreen} from '../../ui/screens/SettingsScreen';
+import {ExtensionsScreen} from '../../ui/screens/ExtensionsScreen';
+import {FilePreviewScreen} from '../../ui/screens/FilePreviewScreen';
+import {FilesScreen} from '../../ui/screens/FilesScreen';
 import {useTheme} from '../../ui/theme/ThemeProvider';
 import type {RootStackParamList} from './types';
 
@@ -20,6 +23,9 @@ export function RootNavigator() {
     >
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="Extensions" component={ExtensionsScreen} />
+      <Stack.Screen name="Files" component={FilesScreen} />
+      <Stack.Screen name="FilePreview" component={FilePreviewScreen} />
     </Stack.Navigator>
   );
 }

@@ -13,6 +13,7 @@ import {useTheme} from '../theme/ThemeProvider';
 import {AppText} from '../primitives/AppText';
 import {Button} from '../primitives/Button';
 import {Card} from '../primitives/Card';
+import {showAlert} from '../primitives/dialogStore';
 import {IconButton} from '../primitives/IconButton';
 import {CitationSources} from './CitationSources';
 import {ClientToolCard} from './ClientToolCard';
@@ -35,7 +36,7 @@ type Block =
       kind: 'thinking';
       text: string;
       streaming: boolean;
-      startedAt?: number;
+      startedAt: number;
       endedAt?: number;
     }
   | {kind: 'tool'; call: ServerToolCall}
@@ -97,12 +98,9 @@ function toBlocks(message: AssistantMessage): Block[] {
       return;
     }
     const last = thinking[thinking.length - 1];
-    let startedAt: number | undefined;
+    const startedAt = thinking[0].startedAt;
     let endedAt: number | undefined;
     for (const segment of thinking) {
-      if (startedAt === undefined) {
-        startedAt = segment.startedAt;
-      }
       if (segment.endedAt !== undefined) {
         endedAt = segment.endedAt;
       }
@@ -117,7 +115,7 @@ function toBlocks(message: AssistantMessage): Block[] {
     thinking = [];
   };
 
-  for (const segment of message.segments as AssistantSegment[]) {
+  for (const segment of message.segments) {
     if (segment.kind === 'thinking') {
       thinking.push(segment);
       continue;
@@ -173,6 +171,7 @@ export function AssistantMessageView({
     try {
       await copyText(message.content);
     } catch {
+      showAlert('复制失败', '请检查应用或浏览器的剪贴板权限后重试。');
       return;
     }
     setCopied(true);
