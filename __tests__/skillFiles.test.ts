@@ -5,7 +5,10 @@ import {
   createFileTools,
   fileToolPrompt,
 } from '../src/features/extensions/fileTools';
-import {parseSkillPackage} from '../src/features/extensions/skillPackage';
+import {
+  createSkillPackage,
+  parseSkillPackage,
+} from '../src/features/extensions/skillPackage';
 import {useSkillsStore} from '../src/features/extensions/skillsStore';
 
 jest.mock('../src/adapters/files/fileStorage', () => {
@@ -99,6 +102,30 @@ it('rejects traversal in a ZIP and validates SKILL.md metadata', () => {
   expect(() =>
     parseSkillPackage('SKILL.md', strToU8('---\nname: X\n---\n# Test')),
   ).toThrow('Skill 名称');
+});
+
+it('creates a valid Skill from the form fields and restores it from storage', async () => {
+  const description = '整理笔记：保留标题。\n---\n支持多行。';
+  const skill = createSkillPackage(
+    ' notes ',
+    description,
+    '# 工具\n\n整理笔记。',
+  );
+  const {install} = useSkillsStore.getState();
+  const installed = install(skill);
+  await expect(install(skill)).rejects.toThrow('正在导入');
+  await installed;
+  await useSkillsStore.getState().hydrate();
+  expect(useSkillsStore.getState().skills).toEqual([skill]);
+  expect(skill.description).toBe(description);
+  expect(skill.files['SKILL.md']).toContain('# 工具');
+  await expect(useSkillsStore.getState().install(skill)).rejects.toThrow(
+    '已导入',
+  );
+  expect(() => createSkillPackage('not a slug', description, '# 工具')).toThrow(
+    '名称须为',
+  );
+  expect(() => createSkillPackage('notes', description, ' ')).toThrow('正文');
 });
 
 it('lists and safely creates, reads and edits workspace files', async () => {

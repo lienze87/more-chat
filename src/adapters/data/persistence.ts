@@ -1,19 +1,29 @@
-/**
- * Throttled saver used for chat history.
- *
- * Streaming produces many store updates per second; writing every one to
- * AsyncStorage would be wasteful. This scheduler coalesces updates and always
- * persists the latest value within `intervalMs`.
- */
-export interface ThrottledSaver<T> {
+interface Saver<T> {
   schedule: (value: T) => void;
   flush: () => Promise<void>;
 }
 
+/** Coalesce writes within a window that starts with the first update. */
 export function createThrottledSaver<T>(
   save: (value: T) => Promise<void>,
   intervalMs = 1500,
-): ThrottledSaver<T> {
+): Saver<T> {
+  return createSaver(save, intervalMs, 'throttle');
+}
+
+/** Coalesce writes until there have been no updates for the delay. */
+export function createDebouncedSaver<T>(
+  save: (value: T) => Promise<void>,
+  delayMs: number,
+): Saver<T> {
+  return createSaver(save, delayMs, 'debounce');
+}
+
+function createSaver<T>(
+  save: (value: T) => Promise<void>,
+  intervalMs: number,
+  mode: 'throttle' | 'debounce',
+): Saver<T> {
   let pending: T | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let running: Promise<void> | null = null;
@@ -24,6 +34,9 @@ export function createThrottledSaver<T>(
     }
     running = (async () => {
       while (pending !== null) {
+        if (mode === 'debounce' && timer !== null) {
+          break;
+        }
         const value = pending;
         pending = null;
         await save(value);
@@ -39,8 +52,11 @@ export function createThrottledSaver<T>(
   return {
     schedule(value: T) {
       pending = value;
-      if (timer) {
-        return;
+      if (timer !== null) {
+        if (mode === 'throttle') {
+          return;
+        }
+        clearTimeout(timer);
       }
       timer = setTimeout(() => {
         timer = null;
@@ -48,7 +64,7 @@ export function createThrottledSaver<T>(
       }, intervalMs);
     },
     async flush() {
-      if (timer) {
+      if (timer !== null) {
         clearTimeout(timer);
         timer = null;
       }

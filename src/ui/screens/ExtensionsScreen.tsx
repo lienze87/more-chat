@@ -6,6 +6,7 @@ import type {RootStackParamList} from '../../app/navigation/types';
 import {pickSkillFile} from '../../adapters/files/importFile';
 import {parseSkillPackage} from '../../features/extensions/skillPackage';
 import {useSkillsStore} from '../../features/extensions/skillsStore';
+import {SkillFormDialog} from '../components/SkillFormDialog';
 import {AppText} from '../primitives/AppText';
 import {Button} from '../primitives/Button';
 import {showAlert} from '../primitives/dialogStore';
@@ -27,7 +28,9 @@ export function ExtensionsScreen({navigation}: Props) {
   const loading = useSkillsStore(state => state.loading);
   const error = useSkillsStore(state => state.error);
   const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState<'github' | 'create' | null>(null);
   const inProgress = useRef(false);
+  const addDisabled = busy || loading || !!error;
 
   const perform = async (title: string, action: () => Promise<void>) => {
     if (inProgress.current) {
@@ -75,21 +78,37 @@ export function ExtensionsScreen({navigation}: Props) {
       <ContentColumn style={{flex: 1, paddingHorizontal: spacing.lg}}>
         <View
           style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            gap: spacing.md,
             paddingVertical: spacing.lg,
           }}
         >
           <AppText variant="title">Skill</AppText>
-          <Button
-            label="导入 Skill"
-            icon="plus"
-            variant="soft"
-            size="sm"
-            disabled={busy || loading || !!error}
-            onPress={importSkill}
-          />
+          <View
+            style={{flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm}}
+          >
+            <Button
+              label="导入 ZIP"
+              variant="secondary"
+              size="sm"
+              disabled={addDisabled}
+              onPress={importSkill}
+            />
+            <Button
+              label="从 GitHub 导入"
+              variant="secondary"
+              size="sm"
+              disabled={addDisabled}
+              onPress={() => setForm('github')}
+            />
+            <Button
+              label="新建 Skill"
+              icon="plus"
+              variant="soft"
+              size="sm"
+              disabled={addDisabled}
+              onPress={() => setForm('create')}
+            />
+          </View>
         </View>
 
         {loading ? (
@@ -119,7 +138,7 @@ export function ExtensionsScreen({navigation}: Props) {
                   <Icon name="extensions" size={iconSize.xl} tone="accent" />
                 }
                 title="还没有 Skill"
-                description="导入 SKILL.md，或导入含有参考文件的 ZIP。启用后，助手会按任务需要读取 Skill。"
+                description="启用后，助手会按任务需要读取 Skill。"
               />
             }
             renderItem={({item}) => (
@@ -157,6 +176,9 @@ export function ExtensionsScreen({navigation}: Props) {
           />
         )}
       </ContentColumn>
+      {form ? (
+        <SkillFormDialog mode={form} onClose={() => setForm(null)} />
+      ) : null}
     </Screen>
   );
 }

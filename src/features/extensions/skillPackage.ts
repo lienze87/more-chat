@@ -1,6 +1,6 @@
 import {fromByteArray} from 'base64-js';
-import {unzipSync} from 'fflate';
-import {parse} from 'yaml';
+import {strToU8, unzipSync} from 'fflate';
+import {parse, stringify} from 'yaml';
 import {imageMimeType, isTextPath, relativePath} from './filePaths';
 
 export interface SkillPackage {
@@ -10,9 +10,15 @@ export interface SkillPackage {
   files: Record<string, string>;
 }
 
-const MAX_FILE_BYTES = 1024 * 1024;
-const MAX_PACKAGE_BYTES = 4 * MAX_FILE_BYTES;
-const MAX_PACKAGE_FILES = 256;
+export const MAX_FILE_BYTES = 1024 * 1024;
+export const MAX_PACKAGE_BYTES = 4 * MAX_FILE_BYTES;
+export const MAX_PACKAGE_FILES = 256;
+
+export const isSkillPathVisible = (path: string): boolean =>
+  path.split('/').every(part => !part.startsWith('.') && part !== '__MACOSX');
+
+export const isSkillFile = (path: string): boolean =>
+  isTextPath(path) || imageMimeType(path) !== undefined;
 
 function readUtf8(bytes: Uint8Array, path: string): string {
   try {
@@ -45,14 +51,10 @@ function unpack(name: string, bytes: Uint8Array): [string, Uint8Array][] {
         const path = entry.name.replace(/\/$/, '');
         relativePath(path);
         if (
-          path
-            .split('/')
-            .some(part => part.startsWith('.') || part === '__MACOSX')
+          !isSkillPathVisible(path) ||
+          !isSkillFile(path) ||
+          entry.name.endsWith('/')
         ) {
-          return false;
-        }
-        const supported = isTextPath(path) || imageMimeType(path);
-        if (!supported || entry.name.endsWith('/')) {
           return false;
         }
         if (names.has(path)) {
@@ -78,7 +80,22 @@ export function parseSkillPackage(
   name: string,
   bytes: Uint8Array,
 ): SkillPackage {
-  const entries = unpack(name, bytes);
+  return parseSkillFiles(unpack(name, bytes));
+}
+
+export function createSkillPackage(
+  name: string,
+  description: string,
+  body: string,
+): SkillPackage {
+  const metadata = stringify(
+    {name: name.trim(), description: description.trim()},
+    {lineWidth: 0},
+  );
+  return parseSkillPackage('SKILL.md', strToU8(`---\n${metadata}---\n${body}`));
+}
+
+export function parseSkillFiles(entries: [string, Uint8Array][]): SkillPackage {
   const manifests = entries.filter(
     ([path]) => path.split('/').at(-1) === 'SKILL.md',
   );

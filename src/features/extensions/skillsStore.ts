@@ -3,6 +3,7 @@ import {fileStorage} from '../../adapters/files/fileStorage';
 import type {SkillPackage} from './skillPackage';
 
 const keyFor = (name: string) => `skill/${name}`;
+const installing = new Set<string>();
 
 interface SkillsState {
   skills: SkillPackage[];
@@ -41,11 +42,20 @@ export const useSkillsStore = create<SkillsState>()((set, get) => ({
   },
 
   install: async skill => {
-    if (get().skills.some(item => item.name === skill.name)) {
-      throw new Error(`已导入 ${skill.name}，请先移除现有 Skill。`);
+    const {name} = skill;
+    if (get().skills.some(item => item.name === name)) {
+      throw new Error(`已导入 ${name}，请先移除现有 Skill。`);
     }
-    await fileStorage.write(keyFor(skill.name), JSON.stringify(skill));
-    set(state => ({skills: [...state.skills, skill].sort(byName)}));
+    if (installing.has(name)) {
+      throw new Error(`正在导入 ${name}，请稍候。`);
+    }
+    installing.add(name);
+    try {
+      await fileStorage.write(keyFor(name), JSON.stringify(skill));
+      set(state => ({skills: [...state.skills, skill].sort(byName)}));
+    } finally {
+      installing.delete(name);
+    }
   },
 
   toggle: async name => {

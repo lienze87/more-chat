@@ -1,13 +1,16 @@
-import React from 'react';
+import React, {useRef, useState} from 'react';
 import {
+  Platform,
   StyleSheet,
   View,
   type KeyboardTypeOptions,
   type StyleProp,
+  type TextInputProps,
   type ViewStyle,
 } from 'react-native';
 import {useTheme} from '../theme/ThemeProvider';
 import {AppText} from '../primitives/AppText';
+import {Button} from '../primitives/Button';
 import {Card} from '../primitives/Card';
 import {Divider as PrimitiveDivider} from '../primitives/Divider';
 import {Icon} from '../primitives/Icon';
@@ -133,13 +136,14 @@ export function ActionRow({
 export {SegmentedControl} from '../primitives/SegmentedControl';
 
 /**
- * 带草稿的文本设置项：失焦或回车时提交，避免每敲一个字符就写一次存储。
+ * 文本设置项：默认在失焦或回车时提交，也可仅在回车时提交。
  */
 export function SettingsTextField({
   label,
   description,
   value,
   onCommit,
+  submitOnly = false,
   multiline,
   keyboardType,
   placeholder,
@@ -148,12 +152,27 @@ export function SettingsTextField({
   description?: string;
   value: string;
   onCommit: (value: string) => void;
+  submitOnly?: boolean;
   multiline?: boolean;
   keyboardType?: KeyboardTypeOptions;
   placeholder?: string;
 }) {
   const theme = useTheme();
   const [draft, setDraft] = useSyncedDraft(value);
+  const showNewline = submitOnly && multiline && Platform.OS !== 'web';
+  const cursor = useRef<TextInputProps['selection']>(undefined);
+  const [selection, setSelection] = useState<TextInputProps['selection']>();
+
+  const insertNewline = () => {
+    const {start, end} = cursor.current ?? {
+      start: draft.length,
+      end: draft.length,
+    };
+    const next = Math.min(start, draft.length) + 1;
+    setDraft(`${draft.slice(0, start)}\n${draft.slice(end)}`);
+    cursor.current = {start: next, end: next};
+    setSelection(cursor.current);
+  };
 
   return (
     <View
@@ -164,8 +183,28 @@ export function SettingsTextField({
         description={description}
         value={draft}
         onChangeText={setDraft}
-        onBlur={() => onCommit(draft)}
-        onSubmitEditing={() => onCommit(draft)}
+        onBlur={submitOnly ? undefined : () => onCommit(draft)}
+        onSubmitEditing={event => onCommit(event.nativeEvent.text)}
+        submitOnReturn={submitOnly}
+        selection={selection}
+        onSelectionChange={
+          showNewline
+            ? event => {
+                cursor.current = event.nativeEvent.selection;
+                setSelection(undefined);
+              }
+            : undefined
+        }
+        accessory={
+          showNewline ? (
+            <Button
+              label="换行"
+              size="sm"
+              variant="soft"
+              onPress={insertNewline}
+            />
+          ) : undefined
+        }
         multiline={multiline}
         keyboardType={keyboardType}
         placeholder={placeholder}

@@ -11,7 +11,10 @@ import {
 } from '../../domain/settings/types';
 import {useChatStore} from '../../features/chat/chatStore';
 import {deleteAllConversations} from '../../features/chat/chatEngine';
-import {useSettingsStore} from '../../features/settings/settingsStore';
+import {
+  flushSettings,
+  useSettingsStore,
+} from '../../features/settings/settingsStore';
 import {APP_VERSION} from '../../config/appConfig';
 import {showAlert} from '../primitives/dialogStore';
 import {
@@ -56,6 +59,10 @@ export function SettingsScreen({navigation}: Props) {
 
   const commitKey = () => {
     void setApiKey(keyDraft);
+  };
+  const saveTextSetting = (key: 'location' | 'systemPrompt', value: string) => {
+    updateSettings({[key]: value});
+    void flushSettings().catch(() => undefined);
   };
   const web = Platform.OS === 'web';
   const keyStatus = savingApiKey
@@ -264,8 +271,13 @@ export function SettingsScreen({navigation}: Props) {
               label="所在地"
               value={settings.location}
               placeholder="例如：上海（可留空）"
-              onCommit={value => updateSettings({location: value})}
-              description="可以包含逗号，如“中国, 上海”"
+              onCommit={value => saveTextSetting('location', value)}
+              submitOnly
+              description={
+                web
+                  ? '按回车保存。可以包含逗号，如“中国, 上海”。'
+                  : '按键盘上的「完成」保存。可以包含逗号，如“中国, 上海”。'
+              }
             />
           </Section>
 
@@ -278,7 +290,13 @@ export function SettingsScreen({navigation}: Props) {
               value={settings.systemPrompt}
               multiline
               placeholder="例如：回答时先给结论，再展开说明。"
-              onCommit={value => updateSettings({systemPrompt: value})}
+              onCommit={value => saveTextSetting('systemPrompt', value)}
+              submitOnly
+              description={
+                web
+                  ? '按回车保存，Shift + 回车换行。'
+                  : '按键盘上的「完成」保存，点「换行」插入新行。'
+              }
             />
           </Section>
 

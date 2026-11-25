@@ -3,7 +3,7 @@ import {DEFAULT_SETTINGS, type Settings} from '../../domain/settings/types';
 import {normalizeSettings} from '../../domain/settings/normalize';
 import {credentialsRepository} from '../../adapters/data/repositories/credentialsRepository';
 import {settingsRepository} from '../../adapters/data/repositories/settingsRepository';
-import {createThrottledSaver} from '../../adapters/data/persistence';
+import {createDebouncedSaver} from '../../adapters/data/persistence';
 
 interface SettingsState {
   settings: Settings;
@@ -17,9 +17,9 @@ interface SettingsState {
   resetSettings: () => void;
 }
 
-const settingsSaver = createThrottledSaver<Settings>(
+const settingsSaver = createDebouncedSaver<Settings>(
   settings => settingsRepository.save(settings),
-  600,
+  300,
 );
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({

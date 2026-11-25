@@ -1,4 +1,7 @@
-import {createThrottledSaver} from '../src/adapters/data/persistence';
+import {
+  createDebouncedSaver,
+  createThrottledSaver,
+} from '../src/adapters/data/persistence';
 
 describe('createThrottledSaver', () => {
   beforeEach(() => {
@@ -35,4 +38,32 @@ describe('createThrottledSaver', () => {
 
     expect(save).toHaveBeenCalledWith(42);
   });
+});
+
+it('keeps the debounce delay when a previous write is still running', async () => {
+  jest.useFakeTimers();
+  try {
+    let finishFirstWrite!: () => void;
+    const firstWrite = new Promise<void>(resolve => {
+      finishFirstWrite = resolve;
+    });
+    const save = jest
+      .fn((_value: number) => Promise.resolve())
+      .mockReturnValueOnce(firstWrite);
+    const saver = createDebouncedSaver(save, 300);
+
+    saver.schedule(1);
+    await jest.advanceTimersByTimeAsync(300);
+    expect(save.mock.calls).toEqual([[1]]);
+
+    saver.schedule(2);
+    finishFirstWrite();
+    await jest.advanceTimersByTimeAsync(299);
+    expect(save.mock.calls).toEqual([[1]]);
+
+    await jest.advanceTimersByTimeAsync(1);
+    expect(save.mock.calls).toEqual([[1], [2]]);
+  } finally {
+    jest.useRealTimers();
+  }
 });

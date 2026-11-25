@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {
+  Platform,
   StyleSheet,
   TextInput,
   View,
@@ -24,7 +25,10 @@ export interface TextFieldProps {
   autoFocus?: boolean;
   maxLength?: number;
   onBlur?: () => void;
-  onSubmitEditing?: () => void;
+  onSubmitEditing?: TextInputProps['onSubmitEditing'];
+  submitOnReturn?: boolean;
+  selection?: TextInputProps['selection'];
+  onSelectionChange?: TextInputProps['onSelectionChange'];
   /** 右侧附加控件，例如“显示 / 隐藏”切换。 */
   accessory?: React.ReactNode;
   accessibilityLabel?: string;
@@ -46,6 +50,9 @@ export function TextField({
   maxLength,
   onBlur,
   onSubmitEditing,
+  submitOnReturn,
+  selection,
+  onSelectionChange,
   accessory,
   accessibilityLabel,
 }: TextFieldProps) {
@@ -85,6 +92,13 @@ export function TextField({
           onBlur?.();
         }}
         onSubmitEditing={onSubmitEditing}
+        returnKeyType={submitOnReturn ? 'done' : undefined}
+        submitBehavior={submitOnReturn ? 'blurAndSubmit' : undefined}
+        blurOnSubmit={
+          submitOnReturn && Platform.OS === 'web' ? true : undefined
+        }
+        selection={selection}
+        onSelectionChange={onSelectionChange}
         accessibilityLabel={accessibilityLabel ?? label ?? placeholder}
         textAlignVertical={multiline ? 'top' : 'center'}
         style={[
