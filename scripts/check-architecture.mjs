@@ -1,8 +1,8 @@
 /**
- * 架构边界检查（无第三方依赖）。
+ * 架构边界检查，使用 TypeScript 解析模块依赖。
  *
  * oxlint 不做跨文件依赖分析，knip 只管未使用代码，两者都发现不了循环依赖
- * 与层次倒置。这个脚本补上这两类检查，跑一次约 100ms：
+ * 与层次倒置。这个脚本补上这两类检查：
  *   1. 模块级循环依赖（值导入 + 类型导入）；
  *   2. 分层规则：下层不得依赖上层。
  *
@@ -11,6 +11,7 @@
 import {existsSync} from 'node:fs';
 import {readdir, readFile} from 'node:fs/promises';
 import path from 'node:path';
+import ts from 'typescript';
 
 const ROOT = process.cwd();
 const SOURCE_DIR = path.join(ROOT, 'src');
@@ -33,8 +34,20 @@ async function collect(dir, acc = []) {
   return acc;
 }
 
-const FROM_PATTERN = /from\s*['"]([^'"]+)['"]/g;
-const BARE_IMPORT_PATTERN = /^\s*import\s*['"]([^'"]+)['"]/gm;
+function dependencySpecifier(node) {
+  if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+    return node.moduleSpecifier;
+  }
+  if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+    return node.argument.literal;
+  }
+  if (
+    ts.isCallExpression(node) &&
+    node.expression.kind === ts.SyntaxKind.ImportKeyword
+  ) {
+    return node.arguments[0];
+  }
+}
 
 /** 无法解析的相对导入：目录搬迁后最容易漏掉的一类问题。 */
 const unresolved = [];
@@ -51,7 +64,6 @@ function resolveSpecifier(fromFile, specifier, known) {
       if (existsSync(path.join(ROOT, base))) {
         return base;
       }
-      unresolved.push({from: fromFile, specifier});
       return null;
     }
     for (const suffix of ['.ts', '.tsx', '/index.ts', '/index.tsx', '']) {
@@ -60,7 +72,6 @@ function resolveSpecifier(fromFile, specifier, known) {
       }
     }
     if (candidates.length === 0) {
-      unresolved.push({from: fromFile, specifier});
       return null;
     }
     return candidates[0];
@@ -75,21 +86,30 @@ async function buildGraph() {
   const known = new Set(files);
   const graph = new Map();
   for (const file of files) {
-    const source = await readFile(path.join(ROOT, file), 'utf8');
-    const edges = [];
-    for (const match of source.matchAll(FROM_PATTERN)) {
-      const resolved = resolveSpecifier(file, match[1], known);
-      if (resolved) {
-        edges.push(resolved);
+    const text = await readFile(path.join(ROOT, file), 'utf8');
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest);
+    const edges = new Map();
+    const visit = node => {
+      const specifier = dependencySpecifier(node);
+      if (specifier && ts.isStringLiteralLike(specifier)) {
+        const resolved = resolveSpecifier(file, specifier.text, known);
+        const {line} = source.getLineAndCharacterOfPosition(
+          specifier.getStart(source),
+        );
+        if (!resolved) {
+          unresolved.push({
+            from: file,
+            specifier: specifier.text,
+            line: line + 1,
+          });
+        } else if (!edges.has(resolved)) {
+          edges.set(resolved, line + 1);
+        }
       }
-    }
-    for (const match of source.matchAll(BARE_IMPORT_PATTERN)) {
-      const resolved = resolveSpecifier(file, match[1], known);
-      if (resolved) {
-        edges.push(resolved);
-      }
-    }
-    graph.set(file, [...new Set(edges)]);
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    graph.set(file, edges);
   }
   return graph;
 }
@@ -136,10 +156,10 @@ const RULES = [
 function checkRules(graph) {
   const violations = [];
   for (const [from, edges] of graph) {
-    for (const to of edges) {
+    for (const [to, line] of edges) {
       for (const rule of RULES) {
         if (rule.from.test(from) && rule.to.test(to)) {
-          violations.push({from, to, reason: rule.reason});
+          violations.push({from, to, line, reason: rule.reason});
         }
       }
     }
@@ -157,7 +177,7 @@ function checkCycles(graph) {
   const visit = node => {
     stack.push(node);
     onStack.add(node);
-    for (const next of graph.get(node) ?? []) {
+    for (const next of graph.get(node).keys()) {
       if (!graph.has(next)) {
         continue;
       }
@@ -198,21 +218,22 @@ if (cycles.length > 0) {
 
 if (violations.length > 0) {
   console.error(`发现 ${violations.length} 处层次倒置：`);
-  for (const {from, to, reason} of violations) {
-    console.error(`  ${from} -> ${to}\n    ${reason}`);
+  for (const {from, to, line, reason} of violations) {
+    console.error(`  ${from}:${line} -> ${to}\n    ${reason}`);
   }
 }
 
 if (unresolved.length > 0) {
   console.error(`发现 ${unresolved.length} 处无法解析的相对导入：`);
-  for (const {from, specifier} of unresolved) {
-    console.error(`  ${from} -> ${specifier}`);
+  for (const {from, specifier, line} of unresolved) {
+    console.error(`  ${from}:${line} -> ${specifier}`);
   }
 }
 
 if (cycles.length === 0 && violations.length === 0 && unresolved.length === 0) {
   const internalEdges = [...graph.values()].reduce(
-    (total, edges) => total + edges.filter(edge => graph.has(edge)).length,
+    (total, edges) =>
+      total + [...edges.keys()].filter(edge => graph.has(edge)).length,
     0,
   );
   process.stdout.write(

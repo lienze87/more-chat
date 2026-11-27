@@ -21,7 +21,8 @@ zustand 或 AsyncStorage，因此核心逻辑可以直接用 Jest 覆盖。
 ### 架构门禁
 
 oxlint 不做跨文件依赖分析，knip 只管未使用代码，两者都发现不了循环依赖与层次
-倒置。因此有 `pnpm arch`（`scripts/check-architecture.mjs`，零依赖、约 100ms）：
+倒置。`pnpm arch` 通过 `scripts/check-architecture.mjs` 检查以下规则。脚本复用项目的
+TypeScript 解析器，读取静态导入、重导出、类型依赖和字面量 `import()`。
 
 | 规则                        | 约束                                                                 |
 | --------------------------- | -------------------------------------------------------------------- |
@@ -33,7 +34,7 @@ oxlint 不做跨文件依赖分析，knip 只管未使用代码，两者都发�
 | `runtime`（规划）           | 只允许 domain 与 ports，禁止 adapters / features / ui / react-native |
 | 全局                        | 任何模块级别的循环依赖                                               |
 
-规则写在脚本里，CI 与 `pnpm check` 都会执行；违反时直接打印「谁依赖谁」和原因。
+规则写在脚本里，CI 与 `pnpm check` 都会执行。出现分层违规时，输出包含引用位置和原因。
 
 ## 消息模型
 

@@ -51,7 +51,7 @@ pnpm lint:staged    # 只检查已暂存的文件（pre-commit 内部调用）
 
 - `.oxlintrc.json`：启用的插件（eslint / react / typescript / import / jsx-a11y 等）、
   规则级别与忽略目录。默认只把 correctness 设为 error，suspicious / perf 为 warn。
-- `scripts/check-architecture.mjs`：零依赖的架构门禁，规则表见
+- `scripts/check-architecture.mjs`：复用 TypeScript 解析器的架构门禁，规则表见
   `docs/ARCHITECTURE.md` 的「架构门禁」一节。新增分层规则时改这一个文件。
 - `.oxfmtrc.json`：由原 Prettier 配置迁移而来，保持单引号、无括号内空格、80 列。
   `ignorePatterns` 已包含构建产物、锁文件与图片。
