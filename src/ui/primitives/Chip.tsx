@@ -27,7 +27,6 @@ export function Chip({
 }: ChipProps) {
   const theme = useTheme();
   const {colors, radius, spacing, controlSize} = theme;
-  const height = size === 'sm' ? controlSize.sm : 34;
 
   return (
     <Pressable
@@ -39,8 +38,11 @@ export function Chip({
         styles.base,
         webPointer,
         {
-          height,
-          paddingHorizontal: spacing.md,
+          minHeight: controlSize.touch,
+          minWidth: controlSize.touch,
+          maxWidth: '100%',
+          paddingHorizontal: size === 'sm' ? spacing.sm : spacing.md,
+          paddingVertical: spacing.sm,
           borderRadius: radius.pill,
           backgroundColor: active ? colors.accentSoft : 'transparent',
           borderColor: active ? colors.accent : colors.border,
@@ -52,6 +54,7 @@ export function Chip({
       <AppText
         variant="footnote"
         style={{
+          flexShrink: 1,
           color: active ? colors.accent : colors.textSecondary,
           fontWeight: '500',
         }}

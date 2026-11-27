@@ -346,6 +346,9 @@ function DialogButtonView({
           borderColor: theme.colors.border,
           borderWidth: ghost ? StyleSheet.hairlineWidth : 0,
           borderRadius: theme.radius.md,
+          minHeight: theme.controlSize.touch,
+          minWidth: theme.controlSize.touch,
+          paddingVertical: theme.spacing.sm,
           opacity: pressed ? 0.78 : 1,
         },
       ]}
@@ -480,7 +483,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   dialogButton: {
-    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,

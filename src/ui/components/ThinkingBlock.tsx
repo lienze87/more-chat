@@ -66,6 +66,7 @@ export function ThinkingBlock({
           {
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.sm,
+            minHeight: theme.controlSize.touch,
             opacity: pressed ? 0.7 : 1,
           },
         ]}

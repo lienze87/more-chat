@@ -56,7 +56,11 @@ export function Card({
       style={({pressed}) => [
         base,
         webPointer,
-        {opacity: pressed ? 0.85 : 1},
+        {
+          minHeight: theme.controlSize.touch,
+          minWidth: theme.controlSize.touch,
+          opacity: pressed ? 0.85 : 1,
+        },
         style,
       ]}
     >

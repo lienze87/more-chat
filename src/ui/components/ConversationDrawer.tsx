@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {
   Animated,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -19,6 +20,7 @@ import {Button} from '../primitives/Button';
 import {Divider} from '../primitives/Divider';
 import {openActionMenu, openPrompt} from '../primitives/dialogStore';
 import {Icon} from '../primitives/Icon';
+import {IconButton} from '../primitives/IconButton';
 import {webPointer} from '../primitives/interaction';
 import {useTheme} from '../theme/ThemeProvider';
 import {ConversationRow} from './ConversationRow';
@@ -97,64 +99,66 @@ export function ConversationDrawer({
   }, [animation, visible]);
 
   const openConversationMenu = (conversation: Conversation) => {
-    openActionMenu(
-      conversation.title,
-      [
-        {
-          text: '重命名',
-          onPress: () =>
-            openPrompt({
-              title: '重命名对话',
-              prompt: {
-                label: '对话标题',
-                initialValue: conversation.title,
-                placeholder: '输入对话标题',
-                maxLength: 60,
-                onSubmit: value => onRename(conversation.id, value),
+    openActionMenu(conversation.title, [
+      {
+        text: '重命名',
+        onPress: () =>
+          openPrompt({
+            title: '重命名对话',
+            prompt: {
+              label: '对话标题',
+              initialValue: conversation.title,
+              placeholder: '输入对话标题',
+              maxLength: 60,
+              onSubmit: value => onRename(conversation.id, value),
+            },
+          }),
+      },
+      {
+        text: '清空消息',
+        onPress: () =>
+          openActionMenu(
+            '清空消息',
+            [
+              {
+                text: '清空',
+                style: 'destructive',
+                onPress: () => onClearMessages(conversation.id),
               },
-            }),
-        },
-        {
-          text: '清空消息',
-          onPress: () =>
-            openActionMenu(
-              '清空消息',
-              [
-                {
-                  text: '清空',
-                  style: 'destructive',
-                  onPress: () => onClearMessages(conversation.id),
-                },
-              ],
-              {message: '将删除本对话的全部消息，无法恢复。', tone: 'danger'},
-            ),
-        },
-        {
-          text: '删除对话',
-          style: 'destructive',
-          onPress: () =>
-            openActionMenu(
-              '删除对话',
-              [
-                {
-                  text: '删除',
-                  style: 'destructive',
-                  onPress: () => onDelete(conversation.id),
-                },
-              ],
-              {message: '该对话将被永久删除。', tone: 'danger'},
-            ),
-        },
-      ],
-      {message: '选择要执行的操作'},
-    );
+            ],
+            {
+              message: `将清空「${conversation.title}」的全部消息，无法恢复。`,
+              tone: 'danger',
+            },
+          ),
+      },
+      {
+        text: '删除对话',
+        style: 'destructive',
+        onPress: () =>
+          openActionMenu(
+            '删除对话',
+            [
+              {
+                text: '删除',
+                style: 'destructive',
+                onPress: () => onDelete(conversation.id),
+              },
+            ],
+            {
+              message: `将永久删除「${conversation.title}」，无法恢复。`,
+              tone: 'danger',
+            },
+          ),
+      },
+    ]);
   };
 
   if (!rendered) {
     return null;
   }
 
-  return (
+  const content = (
     <View style={styles.overlay} pointerEvents="box-none">
       <Animated.View
         pointerEvents="none"
@@ -165,11 +169,16 @@ export function ConversationDrawer({
       />
       <Pressable
         style={StyleSheet.absoluteFill}
-        accessibilityRole="button"
-        accessibilityLabel="关闭对话列表"
+        accessible={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        aria-hidden
+        focusable={false}
+        tabIndex={-1}
         onPress={onClose}
       />
       <Animated.View
+        accessibilityViewIsModal
         style={[
           styles.panel,
           {
@@ -207,6 +216,11 @@ export function ConversationDrawer({
               {sorted.length} 个对话
             </AppText>
           </View>
+          <IconButton
+            name="close"
+            accessibilityLabel="关闭对话列表"
+            onPress={onClose}
+          />
         </View>
 
         <Button
@@ -241,7 +255,7 @@ export function ConversationDrawer({
               conversation={item}
               active={item.id === activeId}
               onPress={() => onSelect(item.id)}
-              onLongPress={() => openConversationMenu(item)}
+              onOpenMenu={() => openConversationMenu(item)}
             />
           )}
         />
@@ -283,6 +297,14 @@ export function ConversationDrawer({
         ))}
       </Animated.View>
     </View>
+  );
+
+  return Platform.OS === 'web' ? (
+    <Modal visible transparent onRequestClose={onClose}>
+      {content}
+    </Modal>
+  ) : (
+    content
   );
 }
 

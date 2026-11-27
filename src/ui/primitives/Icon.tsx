@@ -13,6 +13,8 @@ import type {ThemeColors} from '../theme/tokens';
 export const ICONS = {
   back: 'chevron-back',
   menu: 'menu',
+  more: 'ellipsis-horizontal',
+  close: 'close',
   plus: 'add',
   settings: 'settings-outline',
   folder: 'folder-outline',

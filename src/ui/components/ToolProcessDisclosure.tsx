@@ -53,7 +53,7 @@ export function ToolProcessDisclosure({
           webPointer,
           {
             gap: spacing.sm,
-            minHeight: controlSize.md,
+            minHeight: controlSize.touch,
             opacity: pressed ? 0.7 : 1,
           },
         ]}

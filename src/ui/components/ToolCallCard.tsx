@@ -116,7 +116,10 @@ export function ToolCallCard({call}: ToolCallCardProps) {
               style={({pressed}) => [
                 styles.sourceRow,
                 webPointer,
-                {opacity: pressed ? 0.6 : 1},
+                {
+                  minHeight: theme.controlSize.touch,
+                  opacity: pressed ? 0.6 : 1,
+                },
               ]}
             >
               <View

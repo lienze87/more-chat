@@ -290,7 +290,7 @@ export function AssistantMessageView({
 
       <CitationSources annotations={message.annotations} />
 
-      {canCopy || !isStreaming ? (
+      {canCopy || (!isStreaming && message.status !== 'error') ? (
         <View
           style={[styles.actions, {marginTop: spacing.xs, gap: spacing.xs}]}
         >
@@ -303,7 +303,7 @@ export function AssistantMessageView({
               onPress={handleCopy}
             />
           ) : null}
-          {!isStreaming ? (
+          {!isStreaming && message.status !== 'error' ? (
             <IconButton
               name="refresh"
               tone="secondary"

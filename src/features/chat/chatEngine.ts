@@ -78,10 +78,12 @@ async function runCompletion(params: {
   conversationId: string;
   assistantId: string;
   isFirstTurn: boolean;
+  requestConversation?: Conversation;
 }): Promise<void> {
   const {conversationId, assistantId, isFirstTurn} = params;
   const {settings, apiKey} = useSettingsStore.getState();
-  const conversation = findConversation(conversationId);
+  const conversation =
+    params.requestConversation ?? findConversation(conversationId);
   if (!conversation) {
     return;
   }
@@ -107,6 +109,66 @@ async function runCompletion(params: {
     baseUrl: settings.baseUrl,
     timeoutMs: NETWORK_TIMEOUT_MS,
   });
+}
+
+/** 重试失败回复时，只回放它之前的消息，并在原位置更新结果。 */
+export async function retryFailedReply(
+  conversationId: string,
+  messageId: string,
+): Promise<void> {
+  if (chatRun.isRunning()) {
+    return;
+  }
+  if (!useSettingsStore.getState().apiKey.trim()) {
+    throw new MissingApiKeyError();
+  }
+  const conversation = findConversation(conversationId);
+  const index =
+    conversation?.messages.findIndex(message => message.id === messageId) ?? -1;
+  const previous = conversation?.messages[index];
+  if (
+    !conversation ||
+    previous?.role !== 'assistant' ||
+    previous.status !== 'error'
+  ) {
+    return;
+  }
+  const requestConversation = {
+    ...conversation,
+    messages: conversation.messages.slice(0, index),
+  };
+  if (!requestConversation.messages.some(message => message.role === 'user')) {
+    return;
+  }
+
+  const {updateAssistantMessage} = useChatStore.getState();
+  updateAssistantMessage(conversationId, messageId, () =>
+    createAssistantMessage(messageId, previous.createdAt),
+  );
+  try {
+    await runCompletion({
+      conversationId,
+      assistantId: messageId,
+      isFirstTurn: isFirstTurnOf(requestConversation),
+      requestConversation,
+    });
+  } finally {
+    updateAssistantMessage(conversationId, messageId, current => {
+      if (
+        current.status === 'streaming' ||
+        current.status === 'awaiting_tool'
+      ) {
+        return previous;
+      }
+      if (
+        (current.status === 'error' || current.status === 'aborted') &&
+        previous.content
+      ) {
+        return {...previous, status: current.status, error: current.error};
+      }
+      return current;
+    });
+  }
 }
 
 export async function sendMessage(

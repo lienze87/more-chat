@@ -85,7 +85,7 @@ export function PageHeader({
         },
       ]}
     >
-      <View style={styles.sideSlotFixed}>
+      <View style={{width: theme.controlSize.touch}}>
         {onBack ? (
           <IconButton
             name="back"
@@ -105,7 +105,7 @@ export function PageHeader({
         </AppText>
       </View>
 
-      <View style={styles.sideSlotFixed}>{trailing}</View>
+      <View style={{width: theme.controlSize.touch}}>{trailing}</View>
     </View>
   );
 }
@@ -124,11 +124,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  sideSlotFixed: {
-    minWidth: 40,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
   },
   titleColumn: {
     flex: 1,

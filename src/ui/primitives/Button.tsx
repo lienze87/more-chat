@@ -25,6 +25,7 @@ export interface ButtonProps {
   fullWidth?: boolean;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
+  onTouchStart?: () => void;
 }
 
 /** 按钮只有 6 种语义变体 × 3 种尺寸，页面不再自己拼背景色和圆角。 */
@@ -38,11 +39,11 @@ export function Button({
   fullWidth = false,
   style,
   accessibilityLabel,
+  onTouchStart,
 }: ButtonProps) {
   const theme = useTheme();
   const {colors, radius: r, spacing: s, controlSize} = theme;
   const palette = buttonPalette(variant, colors);
-  const height = controlSize[size];
   const labelVariant = size === 'sm' ? 'footnote' : 'body';
   const iconSize = size === 'sm' ? theme.iconSize.sm : theme.iconSize.md;
 
@@ -53,11 +54,15 @@ export function Button({
       accessibilityState={{disabled}}
       disabled={disabled}
       onPress={onPress}
+      onTouchStart={onTouchStart}
       style={({pressed}) => [
         styles.base,
         webPointer,
         {
-          height,
+          minHeight: controlSize.touch,
+          minWidth: controlSize.touch,
+          maxWidth: '100%',
+          paddingVertical: s.sm,
           paddingHorizontal: size === 'sm' ? s.md : s.xl,
           borderRadius: r.md,
           backgroundColor: palette.background,
@@ -75,7 +80,6 @@ export function Button({
       <AppText
         variant={labelVariant}
         style={[styles.label, {color: palette.foreground}]}
-        numberOfLines={1}
       >
         {label}
       </AppText>
@@ -121,6 +125,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   label: {
+    flexShrink: 1,
     fontWeight: '600',
   },
 });

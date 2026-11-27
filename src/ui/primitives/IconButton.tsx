@@ -20,12 +20,11 @@ export interface IconButtonProps {
   /** 自定义图标尺寸，用于让图标与相邻文字的字号对齐。 */
   iconSize?: number;
   tone?: IconTone;
-  hitSlop?: number;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
-/** 图标按钮：统一触控尺寸（32 / 40）与视觉层级。 */
+/** 图标按钮：图标尺寸独立于触控区域。 */
 export function IconButton({
   name,
   onPress,
@@ -33,13 +32,11 @@ export function IconButton({
   size = 'md',
   iconSize,
   tone = 'secondary',
-  hitSlop = 8,
   disabled = false,
   style,
 }: IconButtonProps) {
   const theme = useTheme();
   const {radius, controlSize} = theme;
-  const dimension = controlSize[size];
   const glyphSize =
     iconSize ?? (size === 'sm' ? theme.iconSize.sm : theme.iconSize.md);
 
@@ -49,14 +46,13 @@ export function IconButton({
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{disabled}}
       disabled={disabled}
-      hitSlop={hitSlop}
       onPress={onPress}
       style={({pressed}) => [
         styles.base,
         webPointer,
         {
-          width: dimension,
-          height: dimension,
+          width: controlSize.touch,
+          height: controlSize.touch,
           borderRadius: radius.md,
           backgroundColor: 'transparent',
           opacity: disabled ? 0.45 : pressed ? 0.6 : 1,

@@ -4,6 +4,7 @@ import {
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   View,
   type NativeScrollEvent,
@@ -17,6 +18,7 @@ import {
   clearMessages,
   deleteConversation,
   regenerateFrom,
+  retryFailedReply,
   sendMessage,
   stopStreaming,
 } from '../../features/chat/chatEngine';
@@ -42,6 +44,7 @@ import {ContentColumn, PageHeader, Screen} from '../primitives/Screen';
 import {useTheme} from '../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
+const BOTTOM_TOLERANCE = 12;
 
 /**
  * 首页：当前对话的消息流 + 输入区。
@@ -58,6 +61,11 @@ export function ChatScreen({navigation}: Props) {
   );
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [input, setInput] = useState('');
+  const [keyboardVisible, setKeyboardVisible] = useState(
+    () => Platform.OS !== 'web' && Keyboard.isVisible(),
+  );
+  const [webKeyboardInset, setWebKeyboardInset] = useState(0);
+  const [following, setFollowing] = useState(true);
 
   // 选中对话被删除（例如设置页清空全部）时自动回退到最近一段对话。
   const conversation = useChatStore(
@@ -73,9 +81,53 @@ export function ChatScreen({navigation}: Props) {
 
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const autoScroll = useRef(true);
+  const lastOffset = useRef(0);
+  const userScrolling = useRef(false);
 
   const isStreaming = streaming?.conversationId === conversation?.id;
   const messages = conversation?.messages ?? [];
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const viewport = window.visualViewport;
+      if (!viewport) {
+        return;
+      }
+      const update = () => {
+        const inputFocused =
+          document.activeElement instanceof HTMLTextAreaElement;
+        setWebKeyboardInset(
+          inputFocused && viewport.scale === 1
+            ? Math.max(
+                0,
+                window.innerHeight - viewport.height - viewport.offsetTop,
+              )
+            : 0,
+        );
+      };
+      const reset = () => setWebKeyboardInset(0);
+      viewport.addEventListener('resize', update);
+      viewport.addEventListener('scroll', update);
+      document.addEventListener('focusout', reset);
+      return () => {
+        viewport.removeEventListener('resize', update);
+        viewport.removeEventListener('scroll', update);
+        document.removeEventListener('focusout', reset);
+      };
+    }
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!drawerVisible) {
@@ -93,7 +145,7 @@ export function ChatScreen({navigation}: Props) {
 
   const scrollToBottom = useCallback(() => {
     if (autoScroll.current) {
-      listRef.current?.scrollToEnd({animated: false});
+      listRef.current?.getNativeScrollRef()?.scrollToEnd({animated: false});
     }
   }, []);
 
@@ -101,8 +153,35 @@ export function ChatScreen({navigation}: Props) {
     const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
     const distance =
       contentSize.height - (contentOffset.y + layoutMeasurement.height);
-    autoScroll.current = distance < 160;
+    const movingUp = contentOffset.y < lastOffset.current;
+    lastOffset.current = contentOffset.y;
+    if (distance <= BOTTOM_TOLERANCE && !autoScroll.current) {
+      autoScroll.current = true;
+      setFollowing(true);
+    } else if (
+      distance > BOTTOM_TOLERANCE &&
+      movingUp &&
+      autoScroll.current &&
+      (userScrolling.current || Platform.OS === 'web')
+    ) {
+      autoScroll.current = false;
+      setFollowing(false);
+    }
   };
+
+  const resumeFollowing = useCallback(() => {
+    userScrolling.current = false;
+    autoScroll.current = true;
+    setFollowing(true);
+    scrollToBottom();
+  }, [scrollToBottom]);
+
+  const resetFollowing = useCallback(() => {
+    userScrolling.current = false;
+    autoScroll.current = true;
+    lastOffset.current = 0;
+    setFollowing(true);
+  }, []);
 
   const promptForApiKey = useCallback(() => {
     showAlert('需要 API Key', '请先在设置中填写 DeepSeek API Key。', [
@@ -111,25 +190,28 @@ export function ChatScreen({navigation}: Props) {
     ]);
   }, [navigation]);
 
-  const selectConversation = useCallback((conversationId: string) => {
-    Keyboard.dismiss();
-    setDrawerVisible(false);
-    setInput('');
-    autoScroll.current = true;
-    setActiveId(conversationId);
-  }, []);
+  const selectConversation = useCallback(
+    (conversationId: string) => {
+      Keyboard.dismiss();
+      setDrawerVisible(false);
+      setInput('');
+      resetFollowing();
+      setActiveId(conversationId);
+    },
+    [resetFollowing],
+  );
 
   const startNewConversation = useCallback(() => {
     Keyboard.dismiss();
     setDrawerVisible(false);
     setInput('');
-    autoScroll.current = true;
+    resetFollowing();
     // 当前已经是空白新对话时直接复用，避免堆积多个“新对话”。
     if (conversation && conversation.messages.length === 0) {
       return;
     }
     setActiveId(createConversation().id);
-  }, [conversation, createConversation]);
+  }, [conversation, createConversation, resetFollowing]);
 
   const removeConversation = useCallback(
     (conversationId: string) => {
@@ -140,10 +222,10 @@ export function ChatScreen({navigation}: Props) {
       const remaining = useChatStore.getState().conversations;
       const next = sortConversationsByRecency(remaining)[0];
       setInput('');
-      autoScroll.current = true;
+      resetFollowing();
       setActiveId(next ? next.id : createConversation().id);
     },
-    [activeId, createConversation],
+    [activeId, createConversation, resetFollowing],
   );
 
   const openSettings = useCallback(() => {
@@ -169,7 +251,7 @@ export function ChatScreen({navigation}: Props) {
       }
       const conversationId = conversation.id;
       setInput('');
-      autoScroll.current = true;
+      resumeFollowing();
       try {
         await sendMessage(conversationId, text);
       } catch (error) {
@@ -181,22 +263,43 @@ export function ChatScreen({navigation}: Props) {
         }
       }
     },
-    [apiKey, conversation, input, isStreaming, promptForApiKey],
+    [
+      apiKey,
+      conversation,
+      input,
+      isStreaming,
+      promptForApiKey,
+      resumeFollowing,
+    ],
   );
 
-  const regenerate = useCallback(
-    (messageId: string) => {
+  const retryReply = useCallback(
+    (messageId: string, retry: boolean) => {
       if (!conversation) {
         return;
       }
-      // 从这条回复开始重写：它之后的轮次会被丢弃，与「重新生成」的语义一致。
-      regenerateFrom(conversation.id, messageId).catch(error => {
-        if (error instanceof MissingApiKeyError) {
-          promptForApiKey();
-        } else {
-          showAlert('重新生成失败', describeError(error));
-        }
-      });
+      const run = () =>
+        (retry ? retryFailedReply : regenerateFrom)(
+          conversation.id,
+          messageId,
+        ).catch(error => {
+          if (error instanceof MissingApiKeyError) {
+            promptForApiKey();
+          } else {
+            showAlert(
+              retry ? '重试失败' : '重新生成失败',
+              describeError(error),
+            );
+          }
+        });
+      if (!retry && conversation.messages.at(-1)?.id !== messageId) {
+        showAlert('重新生成回答', '重新生成会替换这条回复并删除之后的消息。', [
+          {text: '取消', style: 'cancel'},
+          {text: '重新生成', style: 'destructive', onPress: run},
+        ]);
+        return;
+      }
+      void run();
     },
     [conversation, promptForApiKey],
   );
@@ -273,23 +376,41 @@ export function ChatScreen({navigation}: Props) {
         键盘避让：Android 新版 edge-to-edge 下 `adjustResize` 不再缩小窗口，
         键盘会直接盖住输入框；两端统一用 padding 把内容顶上去。
       */}
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardAvoidingView
+        style={[
+          styles.flex,
+          Platform.OS === 'web' && {paddingBottom: webKeyboardInset},
+        ]}
+        behavior={Platform.OS === 'web' ? undefined : 'padding'}
+      >
         <ContentColumn style={styles.flex}>
           <FlatList
+            key={conversation.id}
             ref={listRef}
             data={messages}
             keyExtractor={item => item.id}
             style={styles.flex}
             contentContainerStyle={[
-              styles.listContent,
+              {
+                paddingHorizontal: theme.spacing.lg,
+                paddingTop: theme.spacing.lg,
+                paddingBottom: theme.spacing.md,
+              },
               showWelcome ? styles.listContentWelcome : null,
             ]}
             ListEmptyComponent={<ChatWelcome onSuggestion={submit} />}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             onContentSizeChange={scrollToBottom}
+            onLayout={scrollToBottom}
             onScroll={handleScroll}
-            scrollEventThrottle={100}
+            onScrollBeginDrag={() => {
+              userScrolling.current = true;
+            }}
+            onMomentumScrollEnd={() => {
+              userScrolling.current = false;
+            }}
+            scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}
             renderItem={({item}) => {
               if (item.role === 'user') {
@@ -319,7 +440,9 @@ export function ChatScreen({navigation}: Props) {
                     isStreaming={
                       isStreaming && item.id === streaming?.messageId
                     }
-                    onRegenerate={() => regenerate(item.id)}
+                    onRegenerate={() =>
+                      retryReply(item.id, item.status === 'error')
+                    }
                   />
                 </View>
               );
@@ -367,8 +490,13 @@ export function ChatScreen({navigation}: Props) {
             onChangeText={setInput}
             onSend={() => submit()}
             onStop={stopStreaming}
+            onJumpToLatest={
+              !following && !showWelcome ? resumeFollowing : undefined
+            }
             streaming={isStreaming}
-            bottomInset={insets.bottom}
+            bottomInset={
+              keyboardVisible || webKeyboardInset > 0 ? 0 : insets.bottom
+            }
           />
         </ContentColumn>
       </KeyboardAvoidingView>
@@ -381,11 +509,6 @@ export function ChatScreen({navigation}: Props) {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
   },
   listContentWelcome: {
     flexGrow: 1,

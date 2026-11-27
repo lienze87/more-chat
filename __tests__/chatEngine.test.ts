@@ -616,6 +616,50 @@ describe('chatEngine', () => {
     expect(client.streamChatCompletion).not.toHaveBeenCalled();
   });
 
+  it.each([true, false])(
+    'retains later turns when retrying a historical failure (success: %s)',
+    async succeeds => {
+      const {client, chat, engine} = setup();
+      const failed = engine.sendMessage('c1', '第一问');
+      const first = lastStreamOptions(client);
+      first.onChunk(chunk({content: '保留这段回复'}));
+      first.onError(new Error('网络断开'));
+      await failed;
+
+      const later = engine.sendMessage('c1', '第二问');
+      const second = lastStreamOptions(client);
+      second.onChunk(chunk({content: '第二答'}, 'stop'));
+      second.onDone();
+      await later;
+
+      const messages = () =>
+        chat.useChatStore.getState().conversations[0].messages;
+      const target = messages()[1];
+      const laterTurns = messages().slice(2);
+      const retry = engine.retryFailedReply('c1', target.id);
+      const retryStream = lastStreamOptions(client);
+      expect(
+        turnsOf(retryStream)
+          .map(turn => turn.content)
+          .join(),
+      ).not.toContain('第二问');
+      if (succeeds) {
+        retryStream.onChunk(chunk({content: '新回答'}, 'stop'));
+        retryStream.onDone();
+      } else {
+        retryStream.onError(new Error('再次失败'));
+      }
+      await retry;
+
+      expect(messages()[1]).toMatchObject({
+        id: target.id,
+        content: succeeds ? '新回答' : '保留这段回复',
+        status: succeeds ? 'complete' : 'error',
+      });
+      expect(messages().slice(2)).toEqual(laterTurns);
+    },
+  );
+
   it('aborts the run when its conversation is deleted, without UI help', async () => {
     const {client, chat, engine, abort} = setup();
 

@@ -12,7 +12,7 @@ const SUGGESTIONS = [
   '对比 React Native 和 Flutter 的优缺点',
 ];
 
-/** 新会话欢迎页：品牌标识 + 一句话介绍 + 可点击的示例问题。 */
+/** 新会话欢迎页：品牌标识和可点击的示例问题。 */
 export function ChatWelcome({
   onSuggestion,
 }: {
@@ -24,19 +24,9 @@ export function ChatWelcome({
   return (
     <View style={[styles.welcome, {gap: spacing.md}]}>
       <Logo size={56} />
-      <View style={[styles.heading, {gap: spacing.xs}]}>
-        <AppText variant="headline" align="center">
-          你好，我是 MoreChat
-        </AppText>
-        <AppText
-          variant="body"
-          tone="secondary"
-          align="center"
-          style={styles.subtitle}
-        >
-          基于 DeepSeek API 的移动对话助手，支持深度思考、联网搜索与链接阅读。
-        </AppText>
-      </View>
+      <AppText variant="headline" align="center">
+        你好，我是 MoreChat
+      </AppText>
 
       <View style={[styles.suggestions, {gap: spacing.sm}]}>
         {SUGGESTIONS.map(suggestion => (
@@ -77,12 +67,6 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     paddingBottom: 16,
     alignItems: 'center',
-  },
-  heading: {
-    alignItems: 'center',
-  },
-  subtitle: {
-    maxWidth: 320,
   },
   suggestions: {
     width: '100%',

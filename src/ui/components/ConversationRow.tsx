@@ -4,13 +4,14 @@ import type {Conversation} from '../../domain/chat/types';
 import {formatRelativeTime, stripMarkdown} from '../../utils/text';
 import {useTheme} from '../theme/ThemeProvider';
 import {AppText} from '../primitives/AppText';
+import {IconButton} from '../primitives/IconButton';
 import {webPointer} from '../primitives/interaction';
 
 interface ConversationRowProps {
   conversation: Conversation;
   active: boolean;
   onPress: () => void;
-  onLongPress: () => void;
+  onOpenMenu: () => void;
 }
 
 function previewOf(conversation: Conversation): string {
@@ -33,58 +34,76 @@ export function ConversationRow({
   conversation,
   active,
   onPress,
-  onLongPress,
+  onOpenMenu,
 }: ConversationRowProps) {
   const theme = useTheme();
   const {colors, spacing} = theme;
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`对话：${conversation.title}`}
-      accessibilityState={{selected: active}}
-      delayLongPress={350}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      style={({pressed}) => [
+    <View
+      style={[
         styles.row,
-        webPointer,
         {
-          backgroundColor: active
-            ? colors.accentSoft
-            : pressed
-              ? colors.surfaceMuted
-              : 'transparent',
-          borderRadius: theme.radius.md,
           marginHorizontal: spacing.sm,
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm,
-          gap: spacing.xxs,
+          marginBottom: spacing.xxs,
+          borderRadius: theme.radius.md,
+          backgroundColor: active ? colors.accentSoft : 'transparent',
         },
       ]}
     >
-      <View style={styles.titleRow}>
-        <AppText
-          variant="label"
-          numberOfLines={1}
-          style={[styles.title, active ? {color: colors.accent} : null]}
-        >
-          {conversation.title}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`对话：${conversation.title}`}
+        accessibilityState={{selected: active}}
+        delayLongPress={350}
+        onPress={onPress}
+        onLongPress={onOpenMenu}
+        style={({pressed}) => [
+          styles.select,
+          webPointer,
+          {
+            backgroundColor: pressed ? colors.surfaceMuted : 'transparent',
+            borderRadius: theme.radius.md,
+            minHeight: theme.controlSize.touch,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            gap: spacing.xxs,
+          },
+        ]}
+      >
+        <View style={styles.titleRow}>
+          <AppText
+            variant="label"
+            numberOfLines={1}
+            style={[styles.title, active ? {color: colors.accent} : null]}
+          >
+            {conversation.title}
+          </AppText>
+          <AppText variant="caption" tone="tertiary">
+            {formatRelativeTime(conversation.updatedAt)}
+          </AppText>
+        </View>
+        <AppText variant="caption" tone="tertiary" numberOfLines={1}>
+          {previewOf(conversation)}
         </AppText>
-        <AppText variant="caption" tone="tertiary">
-          {formatRelativeTime(conversation.updatedAt)}
-        </AppText>
-      </View>
-      <AppText variant="caption" tone="tertiary" numberOfLines={1}>
-        {previewOf(conversation)}
-      </AppText>
-    </Pressable>
+      </Pressable>
+      <IconButton
+        name="more"
+        accessibilityLabel={`更多操作：${conversation.title}`}
+        onPress={onOpenMenu}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
-    marginBottom: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  select: {
+    flex: 1,
+    justifyContent: 'center',
   },
   titleRow: {
     flexDirection: 'row',

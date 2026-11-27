@@ -1,6 +1,10 @@
 import React, {useMemo} from 'react';
-import {Linking, Text} from 'react-native';
-import Markdown from 'react-native-markdown-display';
+import {Linking, ScrollView, Text, View} from 'react-native';
+import Markdown, {
+  renderRules,
+  type RenderFunction,
+  type RenderRules,
+} from 'react-native-markdown-display';
 import type {CitationAnnotation} from '../../domain/chat/types';
 import {
   buildCitedMarkdown,
@@ -19,8 +23,31 @@ const openUrl = (url: string) => {
   Linking.openURL(url).catch(() => undefined);
 };
 
-// 在模块作用域创建 markdown-it 渲染规则，避免每次渲染都生成新的组件函数。
-const createRules = (citationColor: string) => ({
+const scrollCode =
+  (render: RenderFunction): RenderFunction =>
+  (node, children, parents, styles, inheritedStyles) => (
+    <ScrollView key={node.key} horizontal keyboardShouldPersistTaps="handled">
+      {render(node, children, parents, styles, inheritedStyles)}
+    </ScrollView>
+  );
+
+const createRules = (citationColor: string): RenderRules => ({
+  code_block: scrollCode(renderRules.code_block!),
+  fence: scrollCode(renderRules.fence!),
+  table: (node, children, parents, styles) => {
+    const columns = node.children[0]?.children[0]?.children.length ?? 1;
+    return (
+      <ScrollView
+        key={node.key}
+        horizontal
+        contentContainerStyle={{flexGrow: 1}}
+      >
+        <View style={{minWidth: columns * 112, flexGrow: 1}}>
+          {renderRules.table?.(node, children, parents, styles)}
+        </View>
+      </ScrollView>
+    );
+  },
   link: (
     node: {key: string; attributes?: {href?: string}},
     children: React.ReactNode[],
@@ -44,6 +71,7 @@ const createRules = (citationColor: string) => ({
     return (
       <Text
         key={node.key}
+        accessibilityRole="link"
         suppressHighlighting
         style={{
           color: citationColor,
@@ -82,8 +110,7 @@ function createStyles(theme: Theme) {
   return {
     body: {
       color: colors.text,
-      fontSize: 15,
-      lineHeight: 24,
+      ...theme.typography.body,
     },
     paragraph: {
       marginTop: 0,

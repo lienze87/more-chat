@@ -44,7 +44,11 @@ export function CitationSources({annotations}: CitationSourcesProps) {
           style={({pressed}) => [
             styles.row,
             webPointer,
-            {gap: spacing.sm, opacity: pressed ? 0.6 : 1},
+            {
+              minHeight: theme.controlSize.touch,
+              gap: spacing.sm,
+              opacity: pressed ? 0.6 : 1,
+            },
           ]}
         >
           <AppText variant="caption" tone="citation" style={styles.number}>

@@ -89,10 +89,9 @@ export const iconSize = {
   xl: 24,
 };
 
-/** 可点击控件的统一高度，保证 iOS / Android / Web 触控目标一致。 */
+/** 最小触控区域。 */
 export const controlSize = {
-  sm: 32,
-  md: 40,
+  touch: 48,
 };
 
 /** 页面内容最大宽度：Web 宽屏下保持可读的阅读宽度。 */
@@ -109,8 +108,8 @@ export const lightColors: ThemeColors = {
   borderStrong: '#C9D3E1',
   text: '#0C1424',
   textSecondary: '#586A82',
-  textTertiary: '#8896AA',
-  accent: '#4D6BFE',
+  textTertiary: '#5D6D82',
+  accent: '#3D57DB',
   accentSoft: '#E9EEFF',
   accentBorder: '#C3D0FF',
   onAccent: '#FFFFFF',
@@ -121,7 +120,7 @@ export const lightColors: ThemeColors = {
   warning: '#B54708',
   codeBackground: '#F0F4F9',
   codeText: '#111A2C',
-  citation: '#4D6BFE',
+  citation: '#3D57DB',
   overlay: 'rgba(12, 20, 36, 0.45)',
 };
 
@@ -133,11 +132,11 @@ export const darkColors: ThemeColors = {
   borderStrong: '#2E3C50',
   text: '#EAF0FA',
   textSecondary: '#9BACBF',
-  textTertiary: '#6E7F94',
+  textTertiary: '#899AB0',
   accent: '#7089FF',
   accentSoft: '#1B2742',
   accentBorder: '#2C3C63',
-  onAccent: '#FFFFFF',
+  onAccent: '#090D14',
   userBubble: '#1D2B4B',
   userBubbleText: '#DCE6FF',
   danger: '#F97066',

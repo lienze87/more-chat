@@ -24,7 +24,7 @@ export function SegmentedControl<T extends string>({
   disabled = false,
 }: SegmentedControlProps<T>) {
   const theme = useTheme();
-  const {colors, radius, spacing} = theme;
+  const {colors, radius, spacing, controlSize} = theme;
 
   return (
     <View
@@ -56,13 +56,16 @@ export function SegmentedControl<T extends string>({
                 backgroundColor: selected ? colors.surface : 'transparent',
                 borderWidth: selected ? StyleSheet.hairlineWidth : 0,
                 borderColor: colors.border,
+                minHeight: controlSize.touch,
+                minWidth: controlSize.touch,
+                paddingVertical: spacing.sm,
                 opacity: pressed ? 0.75 : 1,
               },
             ]}
           >
             <AppText
               variant="label"
-              numberOfLines={1}
+              align="center"
               style={{
                 color: selected ? colors.text : colors.textSecondary,
                 fontWeight: selected ? '600' : '500',
@@ -80,13 +83,13 @@ export function SegmentedControl<T extends string>({
 const styles = StyleSheet.create({
   track: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 2,
   },
   segment: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 32,
     paddingHorizontal: 6,
   },
 });
