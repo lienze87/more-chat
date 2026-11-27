@@ -1,9 +1,8 @@
 import {Platform} from 'react-native';
 import {Directory, File, Paths} from 'expo-file-system';
 import {isAvailableAsync, shareAsync} from 'expo-sharing';
+import {FILE_EXPORT_TIMING} from '../../config/appConfig';
 import {createId} from '../../utils/ids';
-
-const CACHE_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 export async function exportTextFile(
   name: string,
@@ -17,7 +16,7 @@ export async function exportTextFile(
   root.create({idempotent: true, intermediates: true});
   // 分享目标可能在系统面板关闭后才读取文件，缓存副本留到下次清理。
   try {
-    const cutoff = Date.now() - CACHE_RETENTION_MS;
+    const cutoff = Date.now() - FILE_EXPORT_TIMING.nativeCacheRetentionMs;
     for (const entry of root.list()) {
       if (
         entry instanceof Directory &&

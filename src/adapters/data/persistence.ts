@@ -1,3 +1,5 @@
+import {PERSISTENCE_INTERVALS} from '../../config/appConfig';
+
 interface Saver<T> {
   schedule: (value: T) => void;
   flush: () => Promise<void>;
@@ -6,7 +8,7 @@ interface Saver<T> {
 /** Coalesce writes within a window that starts with the first update. */
 export function createThrottledSaver<T>(
   save: (value: T) => Promise<void>,
-  intervalMs = 1500,
+  intervalMs: number = PERSISTENCE_INTERVALS.defaultThrottleMs,
 ): Saver<T> {
   return createSaver(save, intervalMs, 'throttle');
 }

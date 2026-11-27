@@ -1,4 +1,5 @@
 import {create} from 'zustand';
+import {PERSISTENCE_INTERVALS} from '../../config/appConfig';
 import {DEFAULT_SETTINGS, type Settings} from '../../domain/settings/types';
 import {normalizeSettings} from '../../domain/settings/normalize';
 import {credentialsRepository} from '../../adapters/data/repositories/credentialsRepository';
@@ -19,7 +20,7 @@ interface SettingsState {
 
 const settingsSaver = createDebouncedSaver<Settings>(
   settings => settingsRepository.save(settings),
-  300,
+  PERSISTENCE_INTERVALS.settingsDebounceMs,
 );
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({

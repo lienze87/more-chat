@@ -5,16 +5,13 @@ import {
   WORKSPACE_ROOT as WORKSPACE,
 } from '../../adapters/files/workspaceFiles';
 import type {ApiFunctionTool} from '../../adapters/api/types';
+import {FILE_LIMITS} from '../../config/appConfig';
 import {parseToolArguments} from '../../domain/chat/toolCall';
 import type {ClientToolCall} from '../../domain/chat/types';
 import {imageMimeType, isTextPath, relativePath} from './filePaths';
 import type {SkillPackage} from './skillPackage';
 
 const SKILLS = 'skills';
-const MAX_TEXT_BYTES = 256 * 1024;
-const MAX_IMAGE_OUTPUT = 4 * 1024 * 1024;
-const TEXT_PAGE_SIZE = 16_000;
-const DIRECTORY_PAGE_SIZE = 100;
 
 const pathProperty = {type: 'string', description: '工作区内的相对路径'};
 const offsetProperty = {
@@ -48,7 +45,7 @@ function defineTool(
 const tools = [
   defineTool(
     'list_dir',
-    '列出目录的直接子项。默认列出根目录，每页最多 100 项。',
+    `列出目录的直接子项。默认列出根目录，每页最多 ${FILE_LIMITS.directoryPageItems} 项。`,
     {
       path: pathProperty,
       offset: offsetProperty,
@@ -57,7 +54,7 @@ const tools = [
   ),
   defineTool(
     'read_file',
-    '按 UTF-16 字符偏移分页读取 UTF-8 文本，每页最多 16000 字符。',
+    `按 UTF-16 字符偏移分页读取 UTF-8 文本，每页最多 ${FILE_LIMITS.textPageChars} 字符。`,
     {
       path: pathProperty,
       offset: offsetProperty,
@@ -161,7 +158,7 @@ export function createFileTools(
       throw new Error(`目录不存在：${directory}`);
     }
     const entries = [...children].sort(([a], [b]) => a.localeCompare(b));
-    const end = offset + DIRECTORY_PAGE_SIZE;
+    const end = offset + FILE_LIMITS.directoryPageItems;
     return JSON.stringify({
       entries: entries.slice(offset, end).map(([name, type]) => ({name, type})),
       next_offset: end < entries.length ? end : null,
@@ -208,7 +205,10 @@ export function createFileTools(
         throw new Error('请选择 PNG、JPEG、GIF 或 WebP 图片。');
       }
       const content = await read(path);
-      if (imageOutput + content.length > MAX_IMAGE_OUTPUT) {
+      if (
+        imageOutput + content.length >
+        FILE_LIMITS.maxImageOutputCharsPerRun
+      ) {
         throw new Error('本轮对话读取的图片已达到大小上限。');
       }
       imageOutput += content.length;
@@ -223,7 +223,7 @@ export function createFileTools(
     if (call.name === 'read_file') {
       const offset = offsetOf(args);
       const text = await read(path);
-      let end = Math.min(offset + TEXT_PAGE_SIZE, text.length);
+      let end = Math.min(offset + FILE_LIMITS.textPageChars, text.length);
       const lastUnit = text.charCodeAt(end - 1);
       if (end < text.length && lastUnit >= 0xd800 && lastUnit <= 0xdbff) {
         end -= 1;
@@ -267,8 +267,13 @@ export function createFileTools(
       throw new Error(`未知工具：${call.name}`);
     }
 
-    if (content.includes('\0') || strToU8(content).length > MAX_TEXT_BYTES) {
-      throw new Error('文本文件最多为 256 KB，且不能包含 NUL 字符。');
+    if (
+      content.includes('\0') ||
+      strToU8(content).length > FILE_LIMITS.maxWriteTextBytes
+    ) {
+      throw new Error(
+        `文本文件最多为 ${FILE_LIMITS.maxWriteTextBytes / 1024} KB，且不能包含 NUL 字符。`,
+      );
     }
     if (signal.aborted) {
       throw new Error('工具调用已停止。');

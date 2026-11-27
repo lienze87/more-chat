@@ -1,12 +1,6 @@
+import {SKILL_LIMITS} from '../../config/appConfig';
 import {relativePath} from './filePaths';
-import {
-  isSkillFile,
-  isSkillPathVisible,
-  MAX_FILE_BYTES,
-  MAX_PACKAGE_BYTES,
-  MAX_PACKAGE_FILES,
-  parseSkillFiles,
-} from './skillPackage';
+import {isSkillFile, isSkillPathVisible, parseSkillFiles} from './skillPackage';
 
 const RAW_ORIGIN = 'https://raw.githubusercontent.com';
 const URL_ERROR =
@@ -90,7 +84,10 @@ async function listDirectory(
     throw new Error(`无法读取 GitHub 目录（HTTP ${response.status}）。`);
   }
   const entries: unknown = await response.json();
-  if (Array.isArray(entries) && entries.length >= 1000) {
+  if (
+    Array.isArray(entries) &&
+    entries.length >= SKILL_LIMITS.githubMaxDirectoryEntries
+  ) {
     throw new Error('GitHub 目录文件过多，请缩小 Skill 目录。');
   }
   return Array.isArray(entries) ? (entries as GitHubEntry[]) : undefined;
@@ -153,7 +150,7 @@ async function downloadSkill(
       }
       if (entry.type === 'dir') {
         relativePath(filePath);
-        if (directories.length >= MAX_PACKAGE_FILES) {
+        if (directories.length >= SKILL_LIMITS.maxPackageFiles) {
           throw new Error(PACKAGE_LIMIT);
         }
         const children = await listDirectory(
@@ -180,9 +177,9 @@ async function downloadSkill(
         }
         total += entry.size;
         if (
-          entry.size > MAX_FILE_BYTES ||
-          total > MAX_PACKAGE_BYTES ||
-          files.length >= MAX_PACKAGE_FILES
+          entry.size > SKILL_LIMITS.maxFileBytes ||
+          total > SKILL_LIMITS.maxPackageBytes ||
+          files.length >= SKILL_LIMITS.maxPackageFiles
         ) {
           throw new Error(PACKAGE_LIMIT);
         }
@@ -193,10 +190,14 @@ async function downloadSkill(
 
   const downloaded: [string, Uint8Array][] = [];
   let downloadedBytes = 0;
-  for (let index = 0; index < files.length; index += 8) {
+  for (
+    let index = 0;
+    index < files.length;
+    index += SKILL_LIMITS.githubDownloadBatchSize
+  ) {
     const batch = await Promise.all(
       files
-        .slice(index, index + 8)
+        .slice(index, index + SKILL_LIMITS.githubDownloadBatchSize)
         .map(async (file): Promise<[string, Uint8Array]> => {
           const response = await fetch(file.url, {signal, credentials: 'omit'});
           if (!response.ok) {
@@ -205,8 +206,8 @@ async function downloadSkill(
           const bytes = new Uint8Array(await response.arrayBuffer());
           downloadedBytes += bytes.length;
           if (
-            bytes.length > MAX_FILE_BYTES ||
-            downloadedBytes > MAX_PACKAGE_BYTES
+            bytes.length > SKILL_LIMITS.maxFileBytes ||
+            downloadedBytes > SKILL_LIMITS.maxPackageBytes
           ) {
             throw new Error(PACKAGE_LIMIT);
           }
@@ -221,7 +222,10 @@ async function downloadSkill(
 export async function importGitHubSkill(value: string) {
   const {api, refAndPath} = parseGitHubUrl(value);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    SKILL_LIMITS.githubImportTimeoutMs,
+  );
   try {
     return await downloadSkill(api, refAndPath, controller.signal);
   } catch (error) {

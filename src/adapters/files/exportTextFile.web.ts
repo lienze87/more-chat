@@ -1,3 +1,5 @@
+import {FILE_EXPORT_TIMING} from '../../config/appConfig';
+
 export async function exportTextFile(
   name: string,
   content: string,
@@ -13,6 +15,9 @@ export async function exportTextFile(
     link.click();
   } finally {
     link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(
+      () => URL.revokeObjectURL(url),
+      FILE_EXPORT_TIMING.webObjectUrlRetentionMs,
+    );
   }
 }

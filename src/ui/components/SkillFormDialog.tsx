@@ -7,6 +7,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import {SKILL_LIMITS} from '../../config/appConfig';
 import {importGitHubSkill} from '../../features/extensions/githubSkill';
 import {createSkillPackage} from '../../features/extensions/skillPackage';
 import {useSkillsStore} from '../../features/extensions/skillsStore';
@@ -110,7 +111,7 @@ export function SkillFormDialog({
                   description="使用小写字母、数字和连字符。"
                   value={name}
                   onChangeText={setName}
-                  maxLength={64}
+                  maxLength={SKILL_LIMITS.maxNameLength}
                   editable={!busy}
                 />
                 <TextField
@@ -118,7 +119,7 @@ export function SkillFormDialog({
                   placeholder="说明何时使用此 Skill"
                   value={description}
                   onChangeText={setDescription}
-                  maxLength={1024}
+                  maxLength={SKILL_LIMITS.maxDescriptionLength}
                   editable={!busy}
                 />
                 <TextField

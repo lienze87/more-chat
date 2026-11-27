@@ -1,6 +1,7 @@
 import {fromByteArray} from 'base64-js';
 import {strToU8, unzipSync} from 'fflate';
 import {parse, stringify} from 'yaml';
+import {SKILL_LIMITS} from '../../config/appConfig';
 import {imageMimeType, isTextPath, relativePath} from './filePaths';
 
 export interface SkillPackage {
@@ -9,10 +10,6 @@ export interface SkillPackage {
   enabled: boolean;
   files: Record<string, string>;
 }
-
-export const MAX_FILE_BYTES = 1024 * 1024;
-export const MAX_PACKAGE_BYTES = 4 * MAX_FILE_BYTES;
-export const MAX_PACKAGE_FILES = 256;
 
 export const isSkillPathVisible = (path: string): boolean =>
   path.split('/').every(part => !part.startsWith('.') && part !== '__MACOSX');
@@ -64,9 +61,9 @@ function unpack(name: string, bytes: Uint8Array): [string, Uint8Array][] {
         const size = entry.compression === 0 ? entry.size : entry.originalSize;
         total += size;
         if (
-          names.size > MAX_PACKAGE_FILES ||
-          total > MAX_PACKAGE_BYTES ||
-          size > MAX_FILE_BYTES
+          names.size > SKILL_LIMITS.maxPackageFiles ||
+          total > SKILL_LIMITS.maxPackageBytes ||
+          size > SKILL_LIMITS.maxFileBytes
         ) {
           throw new Error('Skill 包解压后超过大小或文件数限制。');
         }
@@ -104,8 +101,9 @@ export function parseSkillFiles(entries: [string, Uint8Array][]): SkillPackage {
   }
 
   const [manifestPath, manifest] = manifests[0];
-  if (manifest.length > MAX_FILE_BYTES) {
-    throw new Error('SKILL.md 不能超过 1 MB。');
+  const maxFileMb = SKILL_LIMITS.maxFileBytes / (1024 * 1024);
+  if (manifest.length > SKILL_LIMITS.maxFileBytes) {
+    throw new Error(`SKILL.md 不能超过 ${maxFileMb} MB。`);
   }
   const raw = readUtf8(manifest, manifestPath)
     .replace(/^\uFEFF/, '')
@@ -120,14 +118,16 @@ export function parseSkillFiles(entries: [string, Uint8Array][]): SkillPackage {
   if (
     typeof skillName !== 'string' ||
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(skillName) ||
-    skillName.length > 64
+    skillName.length > SKILL_LIMITS.maxNameLength
   ) {
-    throw new Error('Skill 名称须为 1–64 位小写字母、数字或连字符。');
+    throw new Error(
+      `Skill 名称须为 1–${SKILL_LIMITS.maxNameLength} 位小写字母、数字或连字符。`,
+    );
   }
   if (
     typeof description !== 'string' ||
     !description.trim() ||
-    description.length > 1024 ||
+    description.length > SKILL_LIMITS.maxDescriptionLength ||
     !raw.slice(frontmatter[0].length).trim()
   ) {
     throw new Error('SKILL.md 需要有效的 description 和正文。');
@@ -141,8 +141,8 @@ export function parseSkillFiles(entries: [string, Uint8Array][]): SkillPackage {
     }
     const relative = path.slice(prefix.length);
     relativePath(`skills/${skillName}/${relative}`);
-    if (contents.length > MAX_FILE_BYTES) {
-      throw new Error(`文件超过 1 MB：${relative}`);
+    if (contents.length > SKILL_LIMITS.maxFileBytes) {
+      throw new Error(`文件超过 ${maxFileMb} MB：${relative}`);
     }
     if (imageMimeType(relative)) {
       files[relative] = fromByteArray(contents);

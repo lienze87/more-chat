@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {CHAT_LIMITS} from '../../config/appConfig';
 import type {Conversation} from '../../domain/chat/types';
 import {
   useChatStore,
@@ -109,7 +110,7 @@ export function ConversationDrawer({
               label: '对话标题',
               initialValue: conversation.title,
               placeholder: '输入对话标题',
-              maxLength: 60,
+              maxLength: CHAT_LIMITS.maxTitleInputLength,
               onSubmit: value => onRename(conversation.id, value),
             },
           }),

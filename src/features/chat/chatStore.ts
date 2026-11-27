@@ -1,4 +1,5 @@
 import {create} from 'zustand';
+import {PERSISTENCE_INTERVALS} from '../../config/appConfig';
 import type {
   AssistantMessage,
   ChatMessage,
@@ -51,7 +52,7 @@ interface ChatState {
 
 const conversationsSaver = createThrottledSaver<Conversation[]>(
   conversations => conversationRepository.save(conversations),
-  1200,
+  PERSISTENCE_INTERVALS.conversationsThrottleMs,
 );
 
 function persist(): void {

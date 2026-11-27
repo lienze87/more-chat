@@ -1,9 +1,10 @@
 import {strToU8} from 'fflate';
+import {FILE_LIMITS} from '../../config/appConfig';
 
 export function relativePath(path: string): string {
   if (
     !path ||
-    strToU8(path).length > 170 ||
+    strToU8(path).length > FILE_LIMITS.maxPathBytes ||
     /[\\:]/.test(path) ||
     Array.from(path).some(char => char < ' ' || char === '\x7f') ||
     path.split('/').some(part => !part || part === '.' || part === '..')

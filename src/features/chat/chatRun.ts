@@ -8,6 +8,7 @@ import type {
 } from '../../adapters/api/chatClient';
 import {buildApiMessages} from '../../adapters/api/requestBuilder';
 import {describeError} from '../../adapters/api/errors';
+import {CHAT_LIMITS} from '../../config/appConfig';
 import type {
   AssistantMessage,
   ClientToolCall,
@@ -83,10 +84,6 @@ export interface ChatRunController {
   isRunning: () => boolean;
 }
 
-const FLUSH_INTERVAL_MS = 40;
-const MAX_TOOL_ROUNDS = 8;
-const MAX_CALLS_PER_ROUND = 8;
-
 export function createChatRunController(deps: ChatRunDeps): ChatRunController {
   let active: ActiveRun | null = null;
 
@@ -161,7 +158,7 @@ export function createChatRunController(deps: ChatRunDeps): ChatRunController {
                   finish(error);
                   handle?.abort();
                 }
-              }, FLUSH_INTERVAL_MS);
+              }, CHAT_LIMITS.streamFlushIntervalMs);
             }
           },
           onDone: () => finish(),
@@ -234,7 +231,10 @@ export function createChatRunController(deps: ChatRunDeps): ChatRunController {
         if (!calls.length || calls.some(call => !supported.has(call.name))) {
           throw new Error('模型请求了不可用的客户端工具。');
         }
-        if (round >= MAX_TOOL_ROUNDS || calls.length > MAX_CALLS_PER_ROUND) {
+        if (
+          round >= CHAT_LIMITS.maxToolRounds ||
+          calls.length > CHAT_LIMITS.maxCallsPerRound
+        ) {
           throw new Error('本次回答已达到工具调用上限。');
         }
 
