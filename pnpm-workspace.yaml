@@ -1,12 +1,3 @@
-# pnpm 12 的配置项（`approve-builds` 写入位置），因此需要这个文件。
-# `packages` 只包含仓库根目录：本仓库是单包项目，不是 monorepo，
-# 但缺省的 packages 字段会让 pnpm 12 的 `pnpm run` 报 "packages field missing or empty"。
-#
-# 为什么需要 allowBuilds：pnpm 12 默认不执行未声明的依赖构建脚本，未声明时
-# `pnpm install` 会以 ERR_PNPM_IGNORED_BUILDS 失败（本地与 CI 一样）。
-# @parcel/watcher 是 jest-haste-map 的原生文件监听实现，需要它的安装脚本。
-packages:
-  - '.'
-
+# Jest 的文件监听依赖需要运行原生安装脚本。
 allowBuilds:
   '@parcel/watcher': true
