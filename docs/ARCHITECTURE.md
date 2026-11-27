@@ -15,8 +15,7 @@ L0  domain/         纯逻辑：消息模型、客户端工具参数、引用编
 L0  config/         常量与默认系统提示词：存储 key、超时、长度上限
 ```
 
-依赖只允许自上而下。**`domain` 与 `config` 是叶子节点**：不 import React Native、
-zustand 或 AsyncStorage，因此核心逻辑可以直接用 Jest 覆盖。
+依赖只允许自上而下。`domain` 和 `config` 独立于应用层与平台实现，核心逻辑可直接用 Jest 覆盖。
 
 ### 架构门禁
 
@@ -27,7 +26,7 @@ TypeScript 解析器，读取静态导入、重导出、类型依赖和字面量
 | 规则                        | 约束                                                                 |
 | --------------------------- | -------------------------------------------------------------------- |
 | `domain`                    | 只能依赖自身；禁止 react / react-native / zustand / AsyncStorage     |
-| `config`                    | 不得依赖任何其它模块                                                 |
+| `config`                    | 不得依赖 `src/` 内的模块                                             |
 | `ui/primitives`、`ui/theme` | 不得依赖 features / adapters / app（主题由调用方注入）               |
 | `features`                  | 不得依赖 ui                                                          |
 | `adapters`                  | 不得依赖 features / ui / app                                         |
@@ -41,11 +40,13 @@ TypeScript 解析器，读取静态导入、重导出、类型依赖和字面量
 ```ts
 AssistantMessage {
   content          // 纯文本回答，用于展示与回传
-  segments[]       // 时间线：thinking | tool | text
+  segments[]       // 时间线：thinking | tool | client_tool | text
   reasoning        // 回传用的 reasoning_content（有工具时为最后一步）
   serverToolCalls[]// 原样回传的服务端工具步骤
+  clientToolCalls[]// 当前子轮次的客户端工具调用
+  toolRounds[]     // 已完成的工具子轮次，用于回放请求历史
   annotations[]    // 引用角标
-  status           // streaming | complete | error | aborted | refused
+  status           // streaming | awaiting_tool | complete | error | aborted | refused
 }
 ```
 
@@ -65,7 +66,7 @@ ChatScreen.submit
             ├─ streamChatCompletion
             │    └─ openSseTransport（Expo Fetch 可读流）
             │         └─ SseParser → JSON chunk → onChunk
-            ├─ 40ms 批量 flush → chatStore.appendAssistantChunks
+            ├─ 批量 flush → chatStore.appendAssistantChunks
             │    └─ applyStreamChunk（纯函数）
             └─ 完成 / 失败 / 停止
                  ├─ 确认助手消息终态
@@ -73,22 +74,22 @@ ChatScreen.submit
                  └─ 释放运行态、清 streaming
 ```
 
-`chatRun` 管理当前运行、缓冲队列与 40ms 定时器，并向 store 同步界面使用的
+`chatRun` 管理当前运行、缓冲队列与定时器，并向 store 同步界面使用的
 `streaming` 标记。完成、失败、启动异常和主动停止共用收尾逻辑。删除或清空对话时，
 `chatEngine` 先取消对应的运行，再修改会话数据。主动停止通过 AbortController 中止请求，并忽略该轮迟到的回调。
 
 设计要点：
 
 1. **纯函数归并**：`applyStreamChunk` 不触碰 React，便于测试思考/工具/拒答等边界。
-2. **批量更新**：每 40ms 合并一次 chunk，避免每 token 一次 React 更新与 Markdown 重排。
+2. **批量更新**：按 [`CHAT_LIMITS.streamFlushIntervalMs`](../src/config/appConfig.ts) 批量归并 chunk，减少 React 更新与 Markdown 重排。
 3. **显式终态**：完成、截断、拒答、中止、失败有对应的界面反馈。客户端工具调用在执行并回传结果后继续生成，模型请求不可用工具时收为可重试的失败。
-4. **回传正确性**：带 `tools` 的请求必须回传 `reasoning_content` 与 `server_tool_calls`，`requestBuilder` 从消息模型还原。
+4. **回传正确性**：`requestBuilder` 从消息模型还原各轮思考、工具调用及其结果。详见 [DeepSeek API 集成](DEEPSEEK_INTEGRATION.md#回传)。
 5. **拒答清理**：收到 `content_filter` 后清空思考与正文，仅保留工具卡片，避免展示已流出的违规文本。
 
 ## 持久化
 
 - AsyncStorage 存放 `settings` 和 `conversations`。
-- 会话写入使用 `createThrottledSaver`：流式期间合并写，最多 1.2s 落盘一次；应用退到后台时强制 flush。
+- 会话写入使用 `createThrottledSaver`：流式期间按 [`PERSISTENCE_INTERVALS.conversationsThrottleMs`](../src/config/appConfig.ts) 合并写入，应用退到后台时立即提交待写数据。
 - 读取时校验当前会话结构，并将中断的生成和工具调用收尾。
 - 原生端通过 `credentialsRepository` 将 API Key 保存至 SecureStore，Web 端由
   `credentialsRepository.web.ts` 在页面内存中持有。
@@ -113,9 +114,9 @@ ChatScreen.submit
 
 ## pnpm 依赖布局
 
-仓库使用 pnpm 12.21.0 的默认 isolated 布局，`node_modules` 中是符号链接而不是平铺目录：
+仓库使用 pnpm 的默认 isolated 布局。pnpm 版本以 [CI 配置](../.github/workflows/ci.yml) 为准。
 
-- Metro 解析符号链接，`pnpm export:android` / `pnpm export:web` 已在 CI 中验证可生成 bundle。
+- Metro 解析符号链接。修改运行时依赖后，用 `pnpm export:android` 和 `pnpm export:web` 检查对应平台的模块图。
 - 原生工程由 `expo prebuild` 生成，`android/settings.gradle` 通过 `expo-modules-autolinking` 与 React Native Gradle 插件自动解析依赖路径，因此 `@react-native/gradle-plugin`、`@react-native/codegen` 仍在 `devDependencies` 中显式声明。
 - 代码检查使用 oxlint / oxfmt（Rust 单二进制），不经过 ESLint 插件解析，pnpm isolated 布局下没有额外的插件提升问题。
 - 新增原生库后，如果 Gradle 找不到其路径，优先检查该库是否需要在 `devDependencies` 中显式声明，或先执行 `pnpm expo prebuild --clean`。

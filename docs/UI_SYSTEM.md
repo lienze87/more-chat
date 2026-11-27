@@ -36,39 +36,12 @@ export const ICONS = {
 
 ## 令牌
 
-### 间距（8pt 栅格）
+具体数值由 [主题令牌](../src/ui/theme/tokens.ts) 定义。组件从主题读取数值。
 
-`xxs 2 / xs 4 / sm 8 / md 12 / lg 16 / xl 20 / xxl 24 / huge 40`
-
-页面统一使用 `theme.spacing.*`，页面左右留白为 `lg (16)`。
-
-### 圆角
-
-`xs 6 / sm 8 / md 12 / lg 16 / xl 20 / xxl 26 / pill 999`
-
-| 用途                       | 取值                |
-| -------------------------- | ------------------- |
-| 输入框、按钮               | `md (12)`           |
-| 卡片、消息块               | `lg (16)`           |
-| 弹窗                       | `xl (20)`           |
-| 输入框外壳（发送框）、胶囊 | `xxl (26)` / `pill` |
-
-### 字号阶梯
-
-| token      | 字号 / 行高  | 用途                     |
-| ---------- | ------------ | ------------------------ |
-| `overline` | 11 / 14，600 | 分组小标题（设置页分区） |
-| `caption`  | 11 / 16      | 时间、元信息、角标       |
-| `footnote` | 12 / 18      | 辅助说明、次要按钮文字   |
-| `label`    | 13 / 18，500 | 表单标签、行内标题       |
-| `body`     | 15 / 23      | 正文、消息内容           |
-| `title`    | 17 / 24，600 | 页面标题、卡片标题       |
-| `headline` | 20 / 28，700 | 欢迎页主标题             |
-
-### 图标与控件
-
-- 图标尺寸：`sm 16 / md 18 / lg 20 / xl 24`。
-- 触控目标：`controlSize.sm 32 / md 40`，图标按钮不会小于 32×32。
+- **间距**使用 `theme.spacing`，常规页面横向留白用 `lg`。
+- **圆角**按组件用途选择。输入框和按钮用 `md`，卡片用 `lg`，弹窗用 `xl`，胶囊用 `pill`。
+- **字号**通过 `AppText` 的 `variant` 选择。正文用 `body`，页面标题用 `title`，辅助说明用 `footnote`。
+- **图标与触控**分别使用 `theme.iconSize` 和 `theme.controlSize.touch`。
 
 ### 颜色
 
@@ -94,14 +67,14 @@ export const ICONS = {
 | `SegmentedControl`                        | 分段控件，选中态用表面色浮起                                            |
 | `Toggle`                                  | 自绘开关，替代 `Switch`（RNW 上颜色不受控）                             |
 | `ListRow`                                 | 设置行：标题 + 说明 + 右侧控件，整行可点                                |
-| `EmptyState`                              | 空状态：插画 + 标题 + 说明 + 可选操作                                   |
+| `EmptyState`                              | 空状态：标题、说明与可选操作                                            |
 | `Dialog` / `DialogHost`                   | 应用内确认框、输入框与操作菜单，见下                                    |
 | `Screen` / `ContentColumn` / `PageHeader` | 页面骨架：安全区、内容列、统一头部                                      |
 
 ## 对话框
 
 `react-native-web` 上的 `Alert.alert` 是空实现，因此确认框与操作菜单统一在应用内
-渲染，三端表现一致：
+渲染，复用同一套交互。
 
 ```tsx
 import {showAlert} from '../primitives/dialogStore';
@@ -123,7 +96,7 @@ showAlert('删除对话', '该对话将被永久删除。', [
 
 ## Web 适配
 
-- `ContentColumn` 限制内容最大宽度 `760`，桌面浏览器中居中显示，避免长文本铺满
+- `ContentColumn` 用 `layout.contentMaxWidth` 限制内容宽度，桌面浏览器中居中显示，避免长文本铺满
   屏幕。
 - `PageHeader` 与 `DialogHost` 全宽渲染，内容列在其内部居中。
 - 可点击元素在 Web 上补 `cursor: pointer`（`primitives/interaction.ts`），并禁用

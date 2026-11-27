@@ -4,6 +4,8 @@
 
 ## 请求
 
+以下是首轮请求示例，省略了客户端工具声明。实际客户端版本取自 [package.json](../package.json)。
+
 ```json
 {
   "model": "deepseek-flash",
@@ -12,16 +14,10 @@
       "role": "system",
       "content": "你是 More，一个运行在 MoreChat 应用中的智能助手。..."
     },
-    {"role": "latest_reminder", "content": "2026-11-22,星期六,上海,App,中文"},
+    {"role": "latest_reminder", "content": "2026-11-22,星期日,上海,App,中文"},
     {
       "role": "user",
-      "content": "<env_info>\n客户端: MoreChat 0.1.0\n平台: App（Android）\n可用工具: 联网搜索、阅读链接\n</env_info>\n\n<user_query>\nDeepSeek 有什么更新？\n</user_query>"
-    },
-    {
-      "role": "assistant",
-      "content": "...",
-      "reasoning_content": "...",
-      "server_tool_calls": []
+      "content": "<env_info>\n客户端: MoreChat <version>\n平台: App（Android）\n可用工具: 联网搜索、阅读链接\n</env_info>\n\n<user_query>\nDeepSeek 有什么更新？\n</user_query>"
     }
   ],
   "stream": true,
@@ -33,12 +29,12 @@
 }
 ```
 
-- 系统提示词固定在最前：`buildSystemPrompt` 把 `src/config/defaultSystemPrompt.ts` 的内置提示词与设置页内容拼成一条 `system` 消息，设置页内容为空时只发送内置提示词。
+- 系统提示词固定在最前：`buildSystemPrompt` 把 `src/config/defaultSystemPrompt.ts` 的内置提示词与设置页内容拼成一条 `system` 消息，有本轮工具说明时，把它追加到同一条消息。
 - `title` 只在会话首轮开启；标题在最后一个 chunk 的 `delta.title` 返回。
 - `reasoning_effort` 仅在开启思考时发送。
 - 关闭全部工具时不发送 `tools`。
 - 声明工具/安全/标题后，服务端会忽略 `temperature`、`top_p` 等参数，客户端不设置它们。
-- 历史 assistant 消息：带 `tools` 的请求必须回传 `reasoning_content` 和 `server_tool_calls`；失败/拒答轮次不回传。
+- 历史 assistant 消息按 [回传规则](#回传) 从已保存的消息和工具子轮次构造。
 
 ## 系统提示词
 
@@ -48,12 +44,11 @@
 2. 设置页内容 trim 后非空时，追加 `## 用户附加提示词` 段，并用 `<configured_prompt>` 包裹；
 3. 附加内容为空时直接返回内置提示词，不会残留空段落。
 
-内置提示词里提到的 `<env_info>`、`<additional_context>`、`<attachments>`、`<user_query>` 属于「消息中可能携带」的正文标签。当前实现：
+请求把用户元信息与正文分开处理。
 
 - `latest_reminder`：按官方「用户元信息标记」发送日期、星期、所在地、平台、语言，每条 user 消息前一条，并随历史回传。
 - `<env_info>`：`buildEnvInfo` 在发送时生成，写入 `UserMessage.envInfo`，回放历史时保持当时的能力快照；只包含客户端版本、平台与可用工具，避免和 `latest_reminder` 重复同一事实。
 - `<user_query>` 包裹用户正文。回放会话时携带发送时保存的 `<env_info>` 快照。
-- `<attachments>`、`<additional_context>` 尚未实现，后续接入附件或工作区信息时按提示词约定扩展。
 
 ## 流式响应映射
 
@@ -67,7 +62,7 @@
 | `delta.title`                         | 更新会话标题（用户手动命名时不覆盖）                                             |
 | `delta.refusal`                       | 记录拒答说明                                                                     |
 | `finish_reason`                       | `stop` 完成；`length` 标记截断；`content_filter` 进入拒答态                      |
-| `usage`                               | 显示 token 用量                                                                  |
+| `usage`                               | 记录 token 用量                                                                  |
 
 ## 工具卡片
 
@@ -114,7 +109,11 @@
 `requestBuilder` 只回传 `status: completed / failed` 的调用结果。客户端文件工具用同一
 份 Zod schema 生成模型声明并校验参数。文件缺失、路径冲突等预期失败以
 `{"type":"error","message":"…"}` 回传，参数校验失败仍以错误文本回传。两种失败都在
-工具卡片显示原因，并随历史按原格式回放。服务端工具沿用 `server_tool_calls` 中的签名内容。
+工具卡片显示原因，并随历史回放。
+
+- 历史中的工具子轮次与最终回复分别处理。失败或拒答的最终回复会被跳过，已记录的工具子轮次仍可回放。
+- 存在思考内容或服务端工具结果时，分别带上 `reasoning_content` 与 `server_tool_calls`。思考模式带工具时，DeepSeek 要求完整回传历史思考。服务端工具保留签名。
+- 本轮 `read_image` 的回传同时携带文本和图片。图片仅保留在本轮运行内存中，后续对话只回放已保存的文本结果。
 
 ### 恢复
 

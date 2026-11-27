@@ -34,17 +34,7 @@ pnpm lint:staged    # 只检查已暂存的文件（pre-commit 内部调用）
 | `commit-msg` | `commitlint`  | 校验提交信息是否符合约定式提交                                  |
 | `pre-push`   | `typecheck`   | 推送前做一次全量类型检查                                        |
 
-`lint-staged` 配置在 `package.json`：
-
-```json
-"lint-staged": {
-  "*.{ts,tsx}": ["oxfmt --write", "oxlint --fix"],
-  "*.{js,cjs,mjs,json,md,yml,yaml}": ["oxfmt --write"]
-}
-```
-
-> 跳过检查只应在紧急情况下使用：`git commit --no-verify`。CI 仍会拦截，因此不要
-> 把它当成常规操作。
+暂存文件的匹配范围和处理命令见 [package.json 的 `lint-staged` 配置](../package.json)。
 
 ## 工具配置
 
@@ -120,7 +110,7 @@ echo "docs: 补充提交规范" | pnpm exec commitlint   # 直接校验一段文
 
 ## 依赖规范
 
-- 新增运行时依赖前先确认能否用现有能力实现；引入原生模块会导致 Expo Go 不可用。
-- 先用 `pnpm exec expo install <pkg>` 安装 Expo 生态包，它会挑选与 SDK 58 匹配的
+- 新增运行时依赖前先确认现有能力是否足够。依赖 Expo Go 未内置的原生代码时，使用开发构建。
+- 先用 `pnpm exec expo install <pkg>` 安装 Expo 生态包，它会挑选与项目当前 Expo SDK 兼容的
   版本。
 - 新增依赖后提交更新后的 `pnpm-lock.yaml`；CI 使用 `--frozen-lockfile` 安装。
