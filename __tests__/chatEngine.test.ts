@@ -318,7 +318,91 @@ describe('chatEngine', () => {
     expect(chat.useChatStore.getState().streaming).toBeNull();
   });
 
+  it('returns operation errors and validation failures and replays them after restore', async () => {
+    const {client, chat, engine, abort} = setup();
+    const pending = engine.sendMessage('c1', '读文件');
+    const first = lastStreamOptions(client);
+    const followupRequest = new Promise<StreamChatOptions>(resolve => {
+      client.streamChatCompletion.mockImplementationOnce(
+        (opts: StreamChatOptions) => {
+          resolve(opts);
+          return {abort};
+        },
+      );
+    });
+    first.onChunk(
+      chunk(
+        {
+          tool_calls: [
+            {
+              index: 0,
+              id: 'missing',
+              function: {
+                name: 'read_file',
+                arguments: '{"path":"skills/notes/missing.md"}',
+              },
+            },
+            {
+              index: 1,
+              id: 'invalid',
+              function: {
+                name: 'write_file',
+                arguments: '{"path":"workspace/out.md","content":42}',
+              },
+            },
+          ],
+        },
+        'tool_calls',
+      ),
+    );
+    first.onDone();
+
+    const second = await followupRequest;
+    const operationError = {
+      role: 'tool',
+      tool_call_id: 'missing',
+      content: JSON.stringify({
+        type: 'error',
+        message: '文件不存在：skills/notes/missing.md',
+      }),
+    };
+    const validationError = {
+      role: 'tool',
+      tool_call_id: 'invalid',
+      content: expect.stringContaining(
+        '错误：工具参数无效：content 必须是字符串',
+      ),
+    };
+    expect(turnsOf(second).slice(-2)).toEqual([
+      operationError,
+      validationError,
+    ]);
+    second.onChunk(chunk({content: '文件没有找到。'}, 'stop'));
+    second.onDone();
+    await pending;
+    expect(assistantOf(chat).segments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'client_tool',
+          call: expect.objectContaining({id: 'missing', status: 'failed'}),
+        }),
+      ]),
+    );
+
+    await chat.flushConversations();
+    await chat.useChatStore.getState().hydrate();
+    const nextTurn = engine.sendMessage('c1', '继续');
+    const third = lastStreamOptions(client);
+    expect(turnsOf(third)).toEqual(
+      expect.arrayContaining([operationError, validationError]),
+    );
+    third.onDone();
+    await nextTurn;
+  });
+
   it('loads skill instructions and continues through text and image tool rounds', async () => {
+    const samplePng =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGhsAAAAASUVORK5CYII=';
     const {client, chat, engine, skills, abort} = setup();
     skills.useSkillsStore.setState({
       skills: [
@@ -326,7 +410,7 @@ describe('chatEngine', () => {
           name: 'notes',
           description: '整理笔记',
           enabled: true,
-          files: {'SKILL.md': '# 整理笔记', 'example.png': 'iVBORw=='},
+          files: {'SKILL.md': '# 整理笔记', 'example.png': samplePng},
         },
       ],
     });
@@ -420,7 +504,7 @@ describe('chatEngine', () => {
           {type: 'text'},
           {
             type: 'image_url',
-            image_url: {url: 'data:image/png;base64,iVBORw=='},
+            image_url: {url: `data:image/png;base64,${samplePng}`},
           },
         ],
       },

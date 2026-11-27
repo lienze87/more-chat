@@ -1,6 +1,7 @@
 import {fileStorage} from './fileStorage';
+import {WORKSPACE_ROOT} from '../../config/appConfig';
 
-export const WORKSPACE_ROOT = 'workspace';
+export {WORKSPACE_ROOT};
 const prefix = `${WORKSPACE_ROOT}/`;
 
 export async function listWorkspacePaths(): Promise<string[]> {

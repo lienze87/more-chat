@@ -6,7 +6,7 @@ import type {ClientToolCall} from './types';
  * 流式期间参数是逐字符拼出来的，可能不完整，因此解析失败返回 null 而不是抛错。
  */
 export function parseToolArguments(
-  call: ClientToolCall,
+  call: Pick<ClientToolCall, 'argumentsText'>,
 ): Record<string, unknown> | null {
   const raw = call.argumentsText.trim();
   if (!raw) {

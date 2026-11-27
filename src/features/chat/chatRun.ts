@@ -14,7 +14,8 @@ import type {
   ClientToolCall,
   Conversation,
 } from '../../domain/chat/types';
-import type {FileToolResult} from '../extensions/fileTools';
+import type {FileToolSnapshot} from '../extensions/fileTools';
+import {FileToolError} from '../extensions/fileToolError';
 import {
   applyFinishReason,
   continueAfterTools,
@@ -68,10 +69,7 @@ export interface ChatRunRequest {
   apiKey: string;
   baseUrl: string;
   timeoutMs: number;
-  executeTool: (
-    call: ClientToolCall,
-    signal: AbortSignal,
-  ) => Promise<FileToolResult>;
+  clientTools: Pick<FileToolSnapshot, 'has' | 'execute'>;
 }
 
 export interface ChatRunController {
@@ -199,11 +197,6 @@ export function createChatRunController(deps: ChatRunDeps): ChatRunController {
       deps.setStreaming({conversationId, messageId: assistantId});
       const system = run.request.messages[0];
       const imageResults = new Map<string, string>();
-      const supported = new Set(
-        (run.request.tools ?? []).flatMap(tool =>
-          tool.type === 'function' ? [tool.function.name] : [],
-        ),
-      );
       let request = run.request;
       for (let round = 0; !signal.aborted; round += 1) {
         await streamRound(run, request, signal);
@@ -228,7 +221,10 @@ export function createChatRunController(deps: ChatRunDeps): ChatRunController {
           break;
         }
         const calls = message.clientToolCalls;
-        if (!calls.length || calls.some(call => !supported.has(call.name))) {
+        if (
+          !calls.length ||
+          calls.some(call => !run.clientTools.has(call.name))
+        ) {
           throw new Error('模型请求了不可用的客户端工具。');
         }
         if (
@@ -241,13 +237,20 @@ export function createChatRunController(deps: ChatRunDeps): ChatRunController {
         for (const call of calls) {
           let result: ClientToolCall;
           try {
-            const output = await run.executeTool(call, signal);
+            const output = await run.clientTools.execute(call, signal);
             if (output.imageUrl) {
               imageResults.set(call.id, output.imageUrl);
             }
             result = {...call, status: 'completed', result: output.text};
           } catch (error) {
-            result = {...call, status: 'failed', error: describeError(error)};
+            result = {
+              ...call,
+              status: 'failed',
+              error: error instanceof Error ? error.message : '工具执行失败。',
+              ...(error instanceof FileToolError
+                ? {result: JSON.stringify(error.toResponse())}
+                : {}),
+            };
           }
           if (signal.aborted) {
             break;

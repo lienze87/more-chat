@@ -111,8 +111,10 @@
 {"role":"tool","tool_call_id":"call_1","content":"晴，24℃"}
 ```
 
-`requestBuilder` 只回传 `status: completed / failed` 的调用结果，仍在运行的不补
-空结果；服务端工具仍按 `server_tool_calls` 原样回传以复用签名内容。
+`requestBuilder` 只回传 `status: completed / failed` 的调用结果。客户端文件工具用同一
+份 Zod schema 生成模型声明并校验参数。文件缺失、路径冲突等预期失败以
+`{"type":"error","message":"…"}` 回传，参数校验失败仍以错误文本回传。两种失败都在
+工具卡片显示原因，并随历史按原格式回放。服务端工具沿用 `server_tool_calls` 中的签名内容。
 
 ### 恢复
 

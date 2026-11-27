@@ -26,12 +26,26 @@ export const CHAT_LIMITS = {
   maxTitleInputLength: 60,
 } as const;
 
+export const WORKSPACE_ROOT = 'workspace';
+
 export const FILE_LIMITS = {
   maxPathBytes: 170,
   maxWriteTextBytes: 256 * 1024,
   maxImageOutputCharsPerRun: 4 * 1024 * 1024,
   textPageChars: 16_000,
   directoryPageItems: 100,
+} as const;
+
+// JSON 可将单个控制字符编码为 6 个字符，另留出路径和参数字段的空间。
+export const WRITE_TOOL_INPUT_LIMIT = FILE_LIMITS.maxWriteTextBytes * 6 + 4_096;
+
+export const FILE_SEARCH_LIMITS = {
+  maxQueryLength: 120,
+  matchesPerPage: 30,
+  filesPerPage: 24,
+  scanCharsPerPage: 1_000_000,
+  previewChars: 240,
+  previewCharsBeforeMatch: 60,
 } as const;
 
 const SKILL_FILE_BYTES = 1024 * 1024;

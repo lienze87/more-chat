@@ -81,7 +81,7 @@ ChatScreen.submit
 
 1. **纯函数归并**：`applyStreamChunk` 不触碰 React，便于测试思考/工具/拒答等边界。
 2. **批量更新**：每 40ms 合并一次 chunk，避免每 token 一次 React 更新与 Markdown 重排。
-3. **显式终态**：完成、截断、拒答、中止、失败有对应的界面反馈。需要本机执行工具的响应会收为可重试的失败。
+3. **显式终态**：完成、截断、拒答、中止、失败有对应的界面反馈。客户端工具调用在执行并回传结果后继续生成，模型请求不可用工具时收为可重试的失败。
 4. **回传正确性**：带 `tools` 的请求必须回传 `reasoning_content` 与 `server_tool_calls`，`requestBuilder` 从消息模型还原。
 5. **拒答清理**：收到 `content_filter` 后清空思考与正文，仅保留工具卡片，避免展示已流出的违规文本。
 
@@ -103,13 +103,13 @@ ChatScreen.submit
 
 ## 扩展点
 
-| 需求                           | 改动位置                                                            |
-| ------------------------------ | ------------------------------------------------------------------- |
-| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer    |
-| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                              |
-| 客户端工具（function calling） | `ClientToolCall` 已就位；补 `runtime/tools` 注册表与执行循环        |
-| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                       |
-| 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts` |
+| 需求                           | 改动位置                                                                   |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer           |
+| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                                     |
+| 客户端工具（function calling） | `features/extensions/fileTools` 生成每轮工具快照，供模型声明和直接调用共用 |
+| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                              |
+| 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts`        |
 
 ## pnpm 依赖布局
 

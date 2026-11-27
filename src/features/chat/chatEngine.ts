@@ -20,7 +20,7 @@ import {
 } from '../../config/appConfig';
 import {useChatStore} from './chatStore';
 import {useSettingsStore} from '../settings/settingsStore';
-import {createFileTools, fileToolPrompt} from '../extensions/fileTools';
+import {createFileTools} from '../extensions/fileTools';
 import {useSkillsStore} from '../extensions/skillsStore';
 import {DEFAULT_MODEL} from '../../domain/settings/types';
 import {createChatRunController} from './chatRun';
@@ -102,9 +102,9 @@ async function runCompletion(params: {
       settings,
       isFirstTurn,
       clientTools: fileTools.definitions,
-      toolPrompt: fileToolPrompt(skills),
+      toolPrompt: fileTools.prompt,
     }),
-    executeTool: fileTools.execute,
+    clientTools: fileTools,
     apiKey,
     baseUrl: settings.baseUrl,
     timeoutMs: NETWORK_TIMEOUT_MS,

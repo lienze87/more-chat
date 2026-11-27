@@ -86,11 +86,12 @@ function appendAssistantRound(
 
   for (const call of clientCalls) {
     const text =
-      call.status === 'completed'
-        ? (call.result ?? '')
+      call.result ??
+      (call.status === 'completed'
+        ? ''
         : call.error
           ? `错误：${call.error}`
-          : '工具执行失败';
+          : '工具执行失败');
     const url = imageResults?.get(call.id);
     messages.push({
       role: 'tool',

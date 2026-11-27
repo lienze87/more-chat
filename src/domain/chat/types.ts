@@ -73,7 +73,9 @@ export interface ClientToolCall {
   /** 流式期间持续拼接的 JSON 片段，执行前用 parseToolArguments 解析。 */
   argumentsText: string;
   status: 'running' | 'completed' | 'failed';
+  /** 发给模型的工具结果，包含文件工具返回的结构化错误。 */
   result?: string;
+  /** 失败时用于展示的错误说明。 */
   error?: string;
 }
 
