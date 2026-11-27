@@ -32,7 +32,7 @@ MoreChat 是使用 TypeScript、React Native 和 Expo 构建的单包应用，An
 - 使用 Node.js 与 pnpm 执行仓库脚本。Node.js 最低版本见 `package.json` 的 `engines`，pnpm 版本与 CI 对齐。
 - 文档改动用 `git diff --check` 与 `pnpm exec oxfmt --check <文件>` 验证，并核对新增的相对链接。
 - 行为改动优先运行 `pnpm test --runInBand <测试文件>`，跨模块改动按需执行 `pnpm arch`、`pnpm typecheck` 或完整的 `pnpm check`。
-- 改动 Metro、运行时依赖或平台适配时，用对应平台的 Expo 导出验证模块图。需要确认设备行为时执行真机或模拟器验证，并在交付时区分导出与设备实测。
+- [CI](.github/workflows/ci.yml) 执行 Android 和 Web 的 Expo 导出。改动 Metro、运行时依赖或平台适配时，先在本地导出受影响的平台。需要确认设备行为时执行真机或模拟器验证，并在交付时区分导出与设备实测。
 - `typecheck` 等短检查约 30 秒没有有效进展时，确认进程状态并停止挂起的命令。记录命令和未验证项，继续完成可运行的针对性检查。以退出状态判断已完成检查的结果。
 
 ## 何时更新本文件
