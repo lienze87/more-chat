@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {
   FILE_LIMITS,
   FILE_SEARCH_LIMITS,
+  JAVASCRIPT_LIMITS,
   WRITE_TOOL_INPUT_LIMIT,
 } from '../../../config/appConfig';
 import {
@@ -18,7 +19,9 @@ import {
 export interface FileToolContext {
   signal: AbortSignal;
   workspace: FileToolWorkspace;
+  script?: {writeCount: number; savedPaths: string[]};
   imageBudget: {remainingChars: number};
+  runScript: (code: string, signal: AbortSignal) => Promise<string>;
 }
 
 interface FileToolResult {
@@ -33,6 +36,7 @@ export interface FileToolDefinition<Schema extends z.ZodType = z.ZodType> {
     args: z.output<Schema>,
     context: FileToolContext,
   ): Promise<FileToolResult>;
+  programmatic?: boolean;
   inputLimit?: number;
   requiresImages?: boolean;
 }
@@ -68,6 +72,7 @@ const listDirectoryDefinition = {
   description: `列出目录的直接子项。默认列出根目录，每页最多 ${FILE_LIMITS.directoryPageItems} 项。`,
   parameters: listDirectorySchema,
   execute: executeListDirectory,
+  programmatic: true,
 } satisfies FileToolDefinition<typeof listDirectorySchema>;
 
 const findFilesSchema = z.strictObject({path: directory, pattern, offset});
@@ -83,6 +88,7 @@ const findFilesDefinition = {
   description: `递归查找匹配路径模式的本地文件，返回 {paths, next_offset}，每页最多 ${FILE_LIMITS.directoryPageItems} 项。path 默认是应用内根目录。`,
   parameters: findFilesSchema,
   execute: executeFindFiles,
+  programmatic: true,
 } satisfies FileToolDefinition<typeof findFilesSchema>;
 
 const cursorError = '请使用上一次搜索返回的 next_cursor。';
@@ -120,6 +126,7 @@ const searchTextDefinition = {
     '递归搜索 UTF-8 文本文件中的区分大小写的字面量。返回 {matches: [{path, line, text}], next_cursor}。即使本页没有命中，只要 next_cursor 非 null 就可继续。',
   parameters: searchTextSchema,
   execute: executeSearchText,
+  programmatic: true,
 } satisfies FileToolDefinition<typeof searchTextSchema>;
 
 const readFileSchema = z.strictObject({path: pathParam, offset});
@@ -135,6 +142,7 @@ const readFileDefinition = {
   description: `按 UTF-16 字符偏移分页读取 UTF-8 文本，每页最多 ${FILE_LIMITS.textPageChars} 字符。`,
   parameters: readFileSchema,
   execute: executeReadFile,
+  programmatic: true,
 } satisfies FileToolDefinition<typeof readFileSchema>;
 
 function writeMessage({path, changed}: {path: string; changed: boolean}) {
@@ -149,9 +157,22 @@ const writeFileSchema = z.strictObject({
 
 async function executeWriteFile(
   args: z.output<typeof writeFileSchema>,
-  {workspace, signal}: FileToolContext,
+  {workspace, signal, script}: FileToolContext,
 ): Promise<FileToolResult> {
-  return {text: writeMessage(await writeTextFile(args, workspace, signal))};
+  if (script && script.writeCount >= FILE_LIMITS.maxWritesPerScript) {
+    throw new Error(
+      `每次脚本执行最多保存 ${FILE_LIMITS.maxWritesPerScript} 个文件。`,
+    );
+  }
+  const written = await writeTextFile(args, workspace, signal);
+  if (script) {
+    script.writeCount += 1;
+    if (written.changed) {
+      script.savedPaths.push(written.path);
+    }
+    return {text: JSON.stringify({path: written.path})};
+  }
+  return {text: writeMessage(written)};
 }
 
 const writeFileDefinition = {
@@ -159,6 +180,7 @@ const writeFileDefinition = {
     '在 workspace/ 创建 UTF-8 文本文件。覆盖已有文件需设置 overwrite。',
   parameters: writeFileSchema,
   execute: executeWriteFile,
+  programmatic: true,
   inputLimit: WRITE_TOOL_INPUT_LIMIT,
 } satisfies FileToolDefinition<typeof writeFileSchema>;
 
@@ -201,6 +223,24 @@ const readImageDefinition = {
   requiresImages: true,
 } satisfies FileToolDefinition<typeof readImageSchema>;
 
+const codeExecSchema = z.strictObject({
+  code: stringParam.min(1).max(JAVASCRIPT_LIMITS.maxCodeLength),
+});
+
+async function executeCode(
+  {code}: z.output<typeof codeExecSchema>,
+  {signal, runScript}: FileToolContext,
+): Promise<FileToolResult> {
+  return {text: await runScript(code, signal)};
+}
+
+const codeExecDefinition = {
+  description:
+    '在独立 JavaScript 环境中编排本地文件工具并处理数据。使用 await tools.call(name, args) 调用工具，用 return 返回最终结果。',
+  parameters: codeExecSchema,
+  execute: executeCode,
+} satisfies FileToolDefinition<typeof codeExecSchema>;
+
 export const fileToolDefinitions = {
   list_dir: listDirectoryDefinition,
   find_files: findFilesDefinition,
@@ -209,4 +249,5 @@ export const fileToolDefinitions = {
   write_file: writeFileDefinition,
   edit_file: editFileDefinition,
   read_image: readImageDefinition,
+  code_exec: codeExecDefinition,
 } satisfies Record<string, FileToolDefinition>;

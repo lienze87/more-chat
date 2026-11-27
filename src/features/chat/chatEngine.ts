@@ -71,6 +71,7 @@ function describeCapabilities(settings: {
     settings.webSearch ? '联网搜索' : null,
     settings.readUrl ? '阅读链接' : null,
     '本地文件',
+    'JavaScript 执行',
   ].filter((item): item is string => item !== null);
 }
 

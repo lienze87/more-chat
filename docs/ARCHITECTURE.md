@@ -103,13 +103,13 @@ ChatScreen.submit
 
 ## 扩展点
 
-| 需求                           | 改动位置                                                                   |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer           |
-| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                                     |
-| 客户端工具（function calling） | `features/extensions/fileTools` 生成每轮工具快照，供模型声明和直接调用共用 |
-| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                              |
-| 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts`        |
+| 需求                           | 改动位置                                                                               |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer                       |
+| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                                                 |
+| 客户端工具（function calling） | `features/extensions/fileTools` 生成每轮工具快照，供模型声明、直接调用和脚本子调用共用 |
+| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                                          |
+| 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts`                    |
 
 ## pnpm 依赖布局
 
