@@ -180,6 +180,23 @@ describe('chatEngine', () => {
     await pending;
   });
 
+  it('describes only the enabled server tools in the env snapshot', async () => {
+    const {client, chat, engine, settings} = setup();
+    settings.useSettingsStore.setState({
+      settings: {...DEFAULT_SETTINGS, webSearch: false, readUrl: false},
+    });
+
+    const pending = engine.sendMessage('c1', '你好');
+    const userMessage =
+      chat.useChatStore.getState().conversations[0].messages[0];
+    expect(userMessage.role).toBe('user');
+    const envInfo = userMessage.role === 'user' ? userMessage.envInfo : '';
+    expect(envInfo).toContain('可用工具: 本地文件、JavaScript 执行');
+
+    lastStreamOptions(client).onDone();
+    await pending;
+  });
+
   it('flushes chunks on a 40ms cadence instead of once per token', async () => {
     const {client, chat, engine} = setup();
 

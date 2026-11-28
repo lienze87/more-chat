@@ -5,6 +5,7 @@ import {
   buildLatestReminder,
   type RuntimePlatform,
 } from '../../domain/chat/userMetadata';
+import {enabledServerToolCapabilities} from '../../domain/chat/capabilities';
 import {createAssistantMessage} from './streamReducer';
 import type {ChatMessage, Conversation} from '../../domain/chat/types';
 import {
@@ -68,11 +69,12 @@ function describeCapabilities(settings: {
   readUrl: boolean;
 }): string[] {
   return [
-    settings.webSearch ? '联网搜索' : null,
-    settings.readUrl ? '阅读链接' : null,
+    ...enabledServerToolCapabilities(settings).map(
+      capability => capability.label,
+    ),
     '本地文件',
     'JavaScript 执行',
-  ].filter((item): item is string => item !== null);
+  ];
 }
 
 async function runCompletion(params: {

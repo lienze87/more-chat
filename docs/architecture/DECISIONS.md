@@ -50,3 +50,15 @@ Windows 下 Jest 需显式设置 `NODE_OPTIONS=--experimental-vm-modules`。
 
 **后果**：新增枚举值或模型只改一处；未知模型默认不支持图片。`types.ts` 只保留
 `Settings` 形状与默认值，并重导出枚举类型，调用方路径不变。
+
+## ADR-0005：服务端工具能力表是声明与描述的唯一来源
+
+**背景**：`requestBuilder` 用 `settings.webSearch` / `settings.readUrl` 拼 API 工具，
+`chatEngine` 又用同一组开关拼 `<env_info>` 的中文能力清单。两边各自维护一份映射，
+新增工具或改文案会漂移。
+
+**决定**：`domain/chat/capabilities.ts` 定义能力表（API 类型、设置开关、展示名称），
+请求构造和能力描述都从 `enabledServerToolCapabilities` 派生。
+
+**后果**：工具声明顺序与 `env_info` 顺序一致；新增服务端工具只改能力表。`env_info`
+仍保留客户端固定能力（本地文件、JavaScript 执行），因为它们不来自设置开关。

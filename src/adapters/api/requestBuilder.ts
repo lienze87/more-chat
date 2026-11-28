@@ -6,6 +6,7 @@ import type {
 import type {Settings} from '../../domain/settings/types';
 import {resolveModel} from '../../domain/settings/models';
 import {composeUserContent} from '../../domain/chat/userMetadata';
+import {enabledServerToolCapabilities} from '../../domain/chat/capabilities';
 import {buildSystemPrompt} from '../../config/defaultSystemPrompt';
 import type {
   ApiFunctionTool,
@@ -137,13 +138,10 @@ export function buildChatRequest({
     request.reasoning_effort = settings.reasoningEffort;
   }
 
-  const tools: ChatCompletionRequest['tools'] = [...clientTools];
-  if (settings.webSearch) {
-    tools.push({type: 'deepseek_web_search'});
-  }
-  if (settings.readUrl) {
-    tools.push({type: 'deepseek_read_url'});
-  }
+  const tools: ChatCompletionRequest['tools'] = [
+    ...clientTools,
+    ...enabledServerToolCapabilities(settings).map(({type}) => ({type})),
+  ];
   if (tools.length > 0) {
     request.tools = tools;
   }
