@@ -42,7 +42,7 @@ export function codePointIndexToCodeUnitIndex(
   return codeUnits;
 }
 
-/** Ordered, de-duplicated sources without injecting markers. */
+/** 有序、去重、可直接展示的引用来源；编号是正文角标的唯一来源。 */
 export function extractCitationSources(
   annotations: CitationAnnotation[] | undefined,
 ): CitationSource[] {
@@ -51,11 +51,7 @@ export function extractCitationSources(
   }
   const sources: CitationSource[] = [];
   const seen = new Set<string>();
-  const sorted = annotations
-    .filter(annotation => annotation?.url_citation?.url)
-    .slice()
-    .sort((a, b) => a.url_citation.end_index - b.url_citation.end_index);
-  for (const annotation of sorted) {
+  for (const annotation of sortedValidCitations(annotations)) {
     const {url, title} = annotation.url_citation;
     if (seen.has(url)) {
       continue;
@@ -64,6 +60,18 @@ export function extractCitationSources(
     sources.push({number: sources.length + 1, url, title: title || url});
   }
   return sources;
+}
+
+function sortedValidCitations(
+  annotations: CitationAnnotation[],
+): CitationAnnotation[] {
+  return annotations
+    .filter(
+      annotation =>
+        annotation?.type === 'url_citation' && annotation.url_citation?.url,
+    )
+    .slice()
+    .sort((a, b) => a.url_citation.end_index - b.url_citation.end_index);
 }
 
 /**
@@ -78,25 +86,20 @@ export function buildCitedMarkdown(
     return {markdown: content, sources: []};
   }
 
-  const sources: CitationSource[] = [];
-  const numberByUrl = new Map<string, number>();
+  const sources = extractCitationSources(annotations);
+  if (sources.length === 0) {
+    return {markdown: content, sources: []};
+  }
+  const numberByUrl = new Map(
+    sources.map(source => [source.url, source.number]),
+  );
   const markersByPosition = new Map<number, number[]>();
 
-  const valid = annotations
-    .filter(
-      annotation =>
-        annotation?.type === 'url_citation' && annotation.url_citation?.url,
-    )
-    .slice()
-    .sort((a, b) => a.url_citation.end_index - b.url_citation.end_index);
-
-  for (const annotation of valid) {
-    const {url, title, end_index} = annotation.url_citation;
-    let number = numberByUrl.get(url);
+  for (const annotation of sortedValidCitations(annotations)) {
+    const {url, end_index} = annotation.url_citation;
+    const number = numberByUrl.get(url);
     if (!number) {
-      number = sources.length + 1;
-      numberByUrl.set(url, number);
-      sources.push({number, url, title: title || url});
+      continue;
     }
 
     const position = codePointIndexToCodeUnitIndex(content, end_index);

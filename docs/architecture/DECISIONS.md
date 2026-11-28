@@ -128,3 +128,16 @@ inset，还包含 rAF 合并、`FlatList` ref、用户滚动判定和 Web `visua
 
 **后果**：文件操作与客户端工具协议边界清晰；`toolDefinitions.ts` 不再位于
 `tools/index.ts` 这种浅 barrel 里。文档中的路径同步更新。
+
+## ADR-0011：引用角标编号与来源列表共用同一排序结果
+
+**背景**：`buildCitedMarkdown` 在插入角标时自行按 `end_index` 排序、按 URL 去重并
+递增编号；`extractCitationSources` 为“参考来源”列表又实现了一遍。两套编号只要
+过滤条件或排序有一处变化，正文角标就会和来源列表错位。
+
+**决定**：`extractCitationSources` 成为编号权威：它过滤有效 URL 引用、按结束位置
+排序、按 URL 去重并生成编号。`buildCitedMarkdown` 先用它得到 `sources`，再用
+URL → 编号映射插入角标；两者共用 `sortedValidCitations`。
+
+**后果**：正文角标与来源列表天然一致；非 `url_citation` 数据被统一忽略。代价是
+`buildCitedMarkdown` 多一次 `sources` 遍历，但引用量很小，可忽略。
