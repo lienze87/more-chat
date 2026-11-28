@@ -14,6 +14,7 @@ import {Button} from '../primitives/Button';
 import {Card} from '../primitives/Card';
 import {showAlert} from '../primitives/dialogStore';
 import {IconButton} from '../primitives/IconButton';
+import {AskUserCard} from './AskUserCard';
 import {CitationSources} from './CitationSources';
 import {ClientToolCard} from './ClientToolCard';
 import {MarkdownText} from './MarkdownText';
@@ -205,7 +206,12 @@ export function AssistantMessageView({
           return renderProcessStep(block, index, isStreaming);
         }
         if (block.kind === 'client_tool') {
-          return (
+          return block.call.name === 'ask_user' ? (
+            <AskUserCard
+              key={`client-tool-${block.call.id}-${index}`}
+              call={block.call}
+            />
+          ) : (
             <ClientToolCard
               key={`client-tool-${block.call.id}-${index}`}
               call={block.call}

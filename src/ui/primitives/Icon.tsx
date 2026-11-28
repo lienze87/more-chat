@@ -35,6 +35,10 @@ export const ICONS = {
   tool: 'construct-outline',
   copy: 'copy-outline',
   checkmark: 'checkmark',
+  checkmarkCircle: 'checkmark-circle-outline',
+  document: 'document-text-outline',
+  question: 'help-circle-outline',
+  timer: 'timer-outline',
 } as const;
 
 export type IconName = keyof typeof ICONS;
