@@ -21,7 +21,7 @@ import {
 export interface FileToolContext {
   signal: AbortSignal;
   workspace: FileToolWorkspace;
-  script?: {writeCount: number; savedPaths: string[]};
+  script?: {writeCount: number; writeBytes: number; savedPaths: string[]};
   imageBudget: {remainingChars: number};
   runScript: (code: string, signal: AbortSignal) => Promise<string>;
 }
@@ -222,11 +222,19 @@ async function executeWriteFile(
       `每次脚本执行最多保存 ${FILE_LIMITS.maxWritesPerScript} 个文件。`,
     );
   }
-  const written = await writeTextFile(args, workspace, signal);
+  const written = await writeTextFile(
+    args,
+    workspace,
+    signal,
+    script
+      ? FILE_LIMITS.maxWriteBytesPerScript - script.writeBytes
+      : Number.POSITIVE_INFINITY,
+  );
   if (script) {
     script.writeCount += 1;
     if (written.changed) {
       script.savedPaths.push(written.path);
+      script.writeBytes += written.bytes;
     }
     return {text: JSON.stringify({path: written.path})};
   }
@@ -298,7 +306,7 @@ async function executeCode(
 
 const codeExecDefinition = {
   description:
-    '在独立 JavaScript 环境中编排本地文件工具并处理数据。使用 await tools.call(name, args) 调用工具，用 return 返回最终结果。',
+    '在独立 JavaScript 环境中编排本地文件工具并处理数据。使用 await tools.call(name, args) 调用工具，用 return 返回最终结果。脚本无网络、定时器和 Intl，可用 TextEncoder/TextDecoder/atob/btoa；异常会附带最近工具调用。',
   parameters: codeExecSchema,
   execute: executeCode,
 } satisfies FileToolDefinition<typeof codeExecSchema>;

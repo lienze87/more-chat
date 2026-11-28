@@ -1,6 +1,10 @@
 import {strToU8} from 'fflate';
 import {
+  deletePath,
   editTextFile,
+  findFiles,
+  listDirectory,
+  movePath,
   readImageFile,
   readTextFile,
   writeTextFile,
@@ -107,7 +111,10 @@ it('serializes checks and writes across competing path updates', async () => {
       signal,
     ),
   ]);
-  expect(first).toEqual({status: 'fulfilled', value: {path, changed: true}});
+  expect(first).toEqual({
+    status: 'fulfilled',
+    value: {path, changed: true, bytes: 5},
+  });
   expect(second).toMatchObject({
     status: 'rejected',
     reason: expect.any(FileToolError),
@@ -119,8 +126,198 @@ it('serializes checks and writes across competing path updates', async () => {
   expect(files.get(path)).toBe('first');
   await expect(
     writeTextFile({path, content: 'first', overwrite: true}, workspace, signal),
-  ).resolves.toEqual({path, changed: false});
+  ).resolves.toEqual({path, changed: false, bytes: 5});
   expect(workspace.write).toHaveBeenCalledTimes(1);
+});
+
+it('deletes files and recursive directories only inside workspace', async () => {
+  const {workspace, files} = createWorkspace({
+    'workspace/a.md': 'a',
+    'workspace/dir/b.md': 'b',
+    'workspace/dir/c.md': 'c',
+    'skills/notes/SKILL.md': 'x',
+  });
+  await expect(
+    deletePath({path: 'workspace/a.md', recursive: false}, workspace, signal),
+  ).resolves.toEqual({deleted: ['workspace/a.md'], count: 1});
+  await expect(
+    deletePath({path: 'workspace/dir', recursive: false}, workspace, signal),
+  ).rejects.toThrow('recursive');
+  await expect(
+    deletePath({path: 'workspace/dir', recursive: true}, workspace, signal),
+  ).resolves.toEqual({
+    deleted: ['workspace/dir/b.md', 'workspace/dir/c.md'],
+    count: 2,
+  });
+  expect([...files.keys()]).toEqual(['skills/notes/SKILL.md']);
+  await expect(
+    deletePath(
+      {path: 'skills/notes/SKILL.md', recursive: false},
+      workspace,
+      signal,
+    ),
+  ).rejects.toThrow('只能删除 workspace/');
+  await expect(
+    deletePath({path: 'workspace', recursive: true}, workspace, signal),
+  ).rejects.toThrow('根目录');
+  await expect(
+    deletePath(
+      {path: 'workspace/missing.md', recursive: false},
+      workspace,
+      signal,
+    ),
+  ).rejects.toThrow('不存在');
+});
+
+it('moves files with overwrite protection and rejects directories', async () => {
+  const {workspace, files} = createWorkspace({
+    'workspace/a.md': 'a',
+    'workspace/b.md': 'b',
+    'workspace/dir/c.md': 'c',
+  });
+  await expect(
+    movePath(
+      {from: 'workspace/a.md', to: 'workspace/sub/a.md', overwrite: false},
+      workspace,
+      signal,
+    ),
+  ).resolves.toEqual({
+    from: 'workspace/a.md',
+    to: 'workspace/sub/a.md',
+  });
+  expect(files.get('workspace/sub/a.md')).toBe('a');
+  await expect(
+    movePath(
+      {from: 'workspace/sub/a.md', to: 'workspace/b.md', overwrite: false},
+      workspace,
+      signal,
+    ),
+  ).rejects.toThrow('已存在');
+  await expect(
+    movePath(
+      {from: 'workspace/sub/a.md', to: 'workspace/b.md', overwrite: true},
+      workspace,
+      signal,
+    ),
+  ).resolves.toEqual({
+    from: 'workspace/sub/a.md',
+    to: 'workspace/b.md',
+  });
+  expect(files.get('workspace/b.md')).toBe('a');
+  await expect(
+    movePath(
+      {from: 'workspace/dir', to: 'workspace/moved', overwrite: false},
+      workspace,
+      signal,
+    ),
+  ).rejects.toThrow('暂不支持移动目录');
+  await expect(
+    movePath(
+      {from: 'workspace/b.md', to: 'workspace/dir', overwrite: false},
+      workspace,
+      signal,
+    ),
+  ).rejects.toThrow('冲突');
+  await expect(
+    movePath(
+      {from: 'workspace/missing.md', to: 'workspace/x.md', overwrite: false},
+      workspace,
+      signal,
+    ),
+  ).rejects.toThrow('源文件不存在');
+});
+
+it('enforces a byte budget on a single save', async () => {
+  const {workspace, files} = createWorkspace({'workspace/a.md': '12345'});
+  await expect(
+    writeTextFile(
+      {path: 'workspace/a.md', content: '123456', overwrite: true},
+      workspace,
+      signal,
+      3,
+    ),
+  ).rejects.toThrow('写入总量');
+  expect(files.get('workspace/a.md')).toBe('12345');
+  await expect(
+    writeTextFile(
+      {path: 'workspace/a.md', content: '123', overwrite: true},
+      workspace,
+      signal,
+      3,
+    ),
+  ).resolves.toEqual({path: 'workspace/a.md', changed: true, bytes: 3});
+});
+
+it('reads the last lines with tail_lines', async () => {
+  const path = 'workspace/log.txt';
+  const {workspace} = createWorkspace({[path]: 'a\nb\nc\n'});
+  await expect(
+    readTextFile({path, offset: 0, tail_lines: 2}, workspace, signal),
+  ).resolves.toEqual({
+    content: 'b\nc\n',
+    start_line: 2,
+    end_line: 3,
+    next_offset: null,
+  });
+  await expect(
+    readTextFile({path, offset: 0, tail_lines: 10}, workspace, signal),
+  ).resolves.toEqual({
+    content: 'a\nb\nc\n',
+    start_line: 1,
+    end_line: 3,
+    next_offset: null,
+  });
+});
+
+it('replaces all matches and reports the replaced count', async () => {
+  const path = 'workspace/notes.md';
+  const {workspace, files} = createWorkspace({[path]: 'a\nb\na\n'});
+  await expect(
+    editTextFile(
+      {path, old_text: 'a', new_text: 'x', all: true},
+      workspace,
+      signal,
+    ),
+  ).resolves.toEqual({path, changed: true, replaced: 2});
+  expect(files.get(path)).toBe('x\nb\nx\n');
+  await expect(
+    editTextFile(
+      {path, old_text: 'x', new_text: 'y', all: false},
+      workspace,
+      signal,
+    ),
+  ).rejects.toThrow('匹配多处');
+});
+
+it('lists metadata and totals, and rejects offsets past the end', async () => {
+  const {workspace} = createWorkspace({
+    'workspace/a.md': 'abc',
+    'workspace/dir/b.md': 'b',
+  });
+  const page = await listDirectory({path: 'workspace', offset: 0}, workspace);
+  expect(page.total).toBe(2);
+  expect(page.entries).toEqual([
+    {name: 'a.md', type: 'file', size: 3},
+    {name: 'dir', type: 'directory'},
+  ]);
+  await expect(
+    listDirectory({path: 'workspace', offset: 3}, workspace),
+  ).rejects.toThrow('offset 超出目录项');
+
+  const files = await findFiles(
+    {path: 'workspace', pattern: '**/*.md', offset: 0},
+    workspace,
+  );
+  expect(files.total).toBe(2);
+  await expect(
+    findFiles({path: 'workspace', pattern: '**/*.md', offset: 3}, workspace),
+  ).rejects.toThrow('offset 超出结果数');
+  await expect(
+    findFiles({path: 'workspace/missing', pattern: '**', offset: 0}, workspace),
+  ).rejects.toThrow('目录不存在');
+  await expect(
+    findFiles({path: 'workspace/a.md', pattern: '**', offset: 0}, workspace),
+  ).rejects.toThrow('目标是文件');
 });
 
 it('checks image signatures and reserves the shared response budget', async () => {

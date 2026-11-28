@@ -15,17 +15,28 @@ return {paths, next_offset};
 ```
 
 - `tools.call()` 使用同名文件工具的参数对象，返回解析后的 JSON。调用失败时抛出 `Error`，脚本可以用 `try/catch` 处理。对每次工具调用使用 `await`，以便脚本在返回前拿到结果。
-- 分页到 `next_offset` 或 `next_cursor` 为 `null` 时结束。搜索结果为空时，仍以 `next_cursor` 判断能否继续。
+- 分页到 `next_offset` 或 `next_cursor` 为 `null` 时结束。搜索结果为空时，仍以 `next_cursor` 判断能否继续。`list_dir` / `find_files` 返回 `total`；`list_dir` 的文件项还包含 `size` 和 `mtime`（Web 端没有 `mtime`）。
+- `search_text` 默认区分大小写，设置 `case_sensitive: false` 可忽略大小写。
+- `read_file` 默认按 UTF-16 字符 `offset` 分页；传 `tail_lines` 可读取末尾 N 行，返回 `start_line` / `end_line`，此时 `next_offset` 为 `null`。
 - 最终返回值需要能按 JSON 序列化。应用将字符串直接作为工具文本，将其他值转为 JSON 文本。省略 `return` 时结果为 `null`。
+
+## 脚本环境
+
+- 可用：`tools`、`TextEncoder` / `TextDecoder`（UTF-8）、`atob` / `btoa`、`queueMicrotask` 和受限的 `console.log/warn/error`。`tools.remainingCalls` 返回本次执行剩余的工具调用次数。
+- 不可用：`setTimeout` / `setInterval`、`fetch`、`Intl`、`Buffer`、`require`、`process`。QuickJS 未链接 ICU，`toLocaleString()` 会忽略 locale 和 options，需要格式化时在脚本里手写或返回原始值。
+- `console` 输出只保留最近 5 条，脚本失败时随错误消息返回；成功的脚本不会把这些日志回传给模型。
+- 脚本异常消息会附带最近 8 次工具调用（成功/失败），便于定位失败点。`saved_paths` 仍由宿主在脚本写入后失败时补充。
 
 ## 调用链与访问边界
 
 1. [`chatRun`](../src/features/chat/chatRun.ts) 收齐模型的客户端工具调用后，通过本轮工具快照执行 `code_exec`。[`tools/index.ts`](../src/features/extensions/tools/index.ts) 用同一份 Zod schema 生成工具声明并定义参数契约。
-2. [`fileTools.ts`](../src/features/extensions/fileTools.ts) 为每次执行建立写入计数和已保存路径记录，把脚本、取消信号和各工具参数上限传给 `runJavaScript`。适配器在新建的 QuickJS 上下文中执行 [`scriptProgram.ts`](../src/adapters/js/scriptProgram.ts) 生成的程序。该程序将底层桥接函数封装在闭包中，并向脚本提供冻结的 `tools` 对象。
-3. 脚本用 JSON 文本将工具名和参数传给宿主。`fileTools.ts` 使用同一份工具快照检查 `programmatic` 标记、参数大小和取消信号，再按工具的 schema 校验并执行。当前开放 `list_dir`、`find_files`、`search_text`、`read_file` 和 `write_file`。文件访问经由宿主代理，范围为应用内的 `workspace/` 和启用的只读 `skills/`，写入限于 `workspace/` 下的 UTF-8 文本。
+2. [`fileTools.ts`](../src/features/extensions/fileTools.ts) 为每次执行建立写入次数、写入字节数和已保存路径记录，把脚本、取消信号和各工具参数上限传给 `runJavaScript`。适配器在新建的 QuickJS 上下文中执行 [`scriptProgram.ts`](../src/adapters/js/scriptProgram.ts) 生成的程序。该程序将底层桥接函数封装在闭包中，并向脚本提供冻结的 `tools` 对象。
+3. 脚本用 JSON 文本将工具名和参数传给宿主。`fileTools.ts` 使用同一份工具快照检查 `programmatic` 标记、参数大小和取消信号，再按工具的 schema 校验并执行。当前开放 `list_dir`、`find_files`、`search_text`、`read_file`、`write_file`、`delete_path` 和 `move_path`。`edit_file` 和 `read_image` 只供模型直接调用。文件访问经由宿主代理，范围为应用内的 `workspace/` 和启用的只读 `skills/`，写入、移动和删除限于 `workspace/`。
 4. 子调用结果在本机经桥接回到脚本。聊天层记录外层 `code_exec` 的结果，并按普通客户端工具结果回传。[`requestBuilder`](../src/adapters/api/requestBuilder.ts) 用已记录的调用和结果构造历史消息，脚本执行只发生在收到新调用时。消息格式见[客户端工具协议](DEEPSEEK_INTEGRATION.md#客户端工具function-calling)。
 
-`write_file` 在脚本内返回 `{path}`。覆盖已有文件需要指定 `overwrite: true`。单次脚本执行最多完成一次 `write_file`，相同内容的成功调用也占用次数。已完成的写入会保留。如果脚本随后失败且该失败被记录为工具结果，`FileToolError` 会附带 `saved_paths`。取消会停止等待工具结果，文件写入能否停止取决于取消发生时操作是否已经开始提交。 [文件操作](../src/features/extensions/fileOperations.ts) · [工具错误格式](../src/features/extensions/fileToolError.ts)
+`write_file` 在脚本内返回 `{path}`。覆盖已有文件需要指定 `overwrite: true`。单次脚本执行最多完成 16 次 `write_file`、内容合计 1 MiB；相同内容的成功调用也占用次数，但内容未变化时不占字节。已完成的写入会保留。如果脚本随后失败且该失败被记录为工具结果，`FileToolError` 会附带 `saved_paths`。取消会停止等待工具结果，文件写入能否停止取决于取消发生时操作是否已经开始提交。 [文件操作](../src/features/extensions/fileOperations.ts) · [工具错误格式](../src/features/extensions/fileToolError.ts)
+
+`delete_path` 只操作 `workspace/`，单文件默认删除；删除目录必须设置 `recursive: true`，并返回实际删除的 `{deleted, count}`。工作区根目录和 `skills/` 不允许删除。`move_path` 只移动文件，支持同目录重命名和跨目录移动；目标已存在时需要 `overwrite: true`，目录移动暂不支持。
 
 ## 平台实现与资源限制
 
@@ -37,7 +48,7 @@ return {paths, next_offset};
 
 Android 和 iOS 的应用运行时均为 Hermes。Metro 为原生端选择 [`runJavaScript.native.ts`](../src/adapters/js/runJavaScript.native.ts)。该适配器通过 [Expo 自动链接模块](../modules/code-exec/expo-module.config.json)调用 `MoreChatCodeExec.evaluate`，监听 `toolRequest`，并按 `runId` 和 `requestId` 回传 `reply`。超时和主动停止都会触发宿主侧的 `AbortSignal` 与原生 `cancel`。执行结束时释放运行时和监听器，迟到的工具结果由适配器丢弃。
 
-所有业务限额以 [`appConfig.ts`](../src/config/appConfig.ts) 为准。当前脚本上限为 16,000 个 UTF-16 码元，序列化输出上限为 12,000 个，单次最多发起 32 次工具调用。默认工具参数上限为 4,096 个码元，`write_file` 使用单独的参数上限以容纳转义后的文本，实际文件内容上限为 256 KiB。各端设置 5 秒执行总时限、8 MiB QuickJS 内存上限和 256 KiB 栈上限。Web 和 Jest 在 WASM 加载完成后开始计时，初次执行和每批 Promise 任务各有最多 100 毫秒的连续执行预算，并在任务批次之间让出线程。
+所有业务限额以 [`appConfig.ts`](../src/config/appConfig.ts) 为准。当前脚本上限为 16,000 个 UTF-16 码元，序列化输出上限为 12,000 个，单次最多发起 64 次工具调用，`write_file` 最多 16 次且合计 1 MiB，`tail_lines` 最多 200 行。默认工具参数上限为 4,096 个码元，`write_file` 使用单独的参数上限以容纳转义后的文本，实际单个文件内容上限为 256 KiB。各端设置 5 秒执行总时限、8 MiB QuickJS 内存上限和 256 KiB 栈上限。Web 和 Jest 在 WASM 加载完成后开始计时，初次执行和每批 Promise 任务各有最多 100 毫秒的连续执行预算，并在任务批次之间让出线程。
 
 ## 修改与验证
 

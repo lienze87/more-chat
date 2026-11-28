@@ -169,6 +169,29 @@ it('lists and safely creates, reads and edits workspace files', async () => {
   ).rejects.toThrow('相对路径');
 });
 
+it('replaces every match when edit_file receives all', async () => {
+  const {execute} = createFileTools([], false);
+  const path = 'workspace/repeat.txt';
+  await fileStorage.write(path, 'a\na\n');
+  await expect(
+    execute(
+      call('edit_file', {
+        path,
+        old_text: 'a',
+        new_text: 'b',
+        all: true,
+      }),
+      signal,
+    ),
+  ).resolves.toEqual({
+    text: JSON.stringify({path, changed: true, replaced: 2}),
+  });
+  expect(await fileStorage.read(path)).toBe('b\nb\n');
+  await expect(
+    execute(call('edit_file', {path, old_text: 'b', new_text: 'c'}), signal),
+  ).rejects.toThrow('匹配多处');
+});
+
 it('runs a script that lists, reads and filters workspace files', async () => {
   const {definitions, execute} = createFileTools([], false);
   expect(definitions.map(tool => tool.function.name)).toContain('code_exec');
@@ -335,6 +358,22 @@ it('finds files recursively with relative patterns and path pagination', async (
     next_offset: null,
   });
   await expect(run({pattern: '../*.json'})).rejects.toThrow('相对路径');
+  await expect(run({path: 'workspace/missing'})).rejects.toThrow('目录不存在');
+  await expect(run({path: 'workspace/top.json'})).rejects.toThrow('目标是文件');
+});
+
+it('lists directory metadata and reports the total', async () => {
+  const {execute} = createFileTools([], false);
+  await fileStorage.write('workspace/meta.txt', 'abc');
+  const page = JSON.parse(
+    (await execute(call('list_dir', {path: 'workspace', offset: 0}), signal))
+      .text,
+  );
+  expect(page.total).toBe(1);
+  expect(page.entries).toEqual([{name: 'meta.txt', type: 'file', size: 3}]);
+  await expect(
+    execute(call('list_dir', {path: 'workspace', offset: 2}), signal),
+  ).rejects.toThrow('offset 超出目录项');
 });
 
 it('searches literal matches with line numbers and resumes within a file', async () => {
@@ -366,6 +405,38 @@ it('searches literal matches with line numbers and resumes within a file', async
   await expect(run({cursor: {file: 0, line: -1, offset: 0}})).rejects.toThrow(
     'next_cursor',
   );
+});
+
+it('ignores case when case_sensitive is false', async () => {
+  const {execute} = createFileTools([], false);
+  const run = async (caseSensitive: boolean) =>
+    JSON.parse(
+      (
+        await execute(
+          call('search_text', {
+            path: 'workspace',
+            query: 'refunded',
+            case_sensitive: caseSensitive,
+          }),
+          signal,
+        )
+      ).text,
+    );
+  await fileStorage.write('workspace/refund.txt', 'REFUNDED\nrefunded\n');
+  expect((await run(true)).matches).toHaveLength(1);
+  expect((await run(false)).matches).toEqual([
+    {path: 'workspace/refund.txt', line: 1, text: 'REFUNDED'},
+    {path: 'workspace/refund.txt', line: 2, text: 'refunded'},
+  ]);
+  await expect(
+    execute(
+      call('search_text', {
+        path: 'workspace/missing',
+        query: 'refunded',
+      }),
+      signal,
+    ),
+  ).rejects.toThrow('目录不存在');
 });
 
 it('returns a cursor when the first search page has no matches', async () => {
@@ -410,7 +481,7 @@ it('resumes after scanning a long line without a match', async () => {
   });
 });
 
-it('finds and searches files in code mode and saves one large artifact', async () => {
+it('finds and searches files in code mode and saves multiple artifacts', async () => {
   const {execute} = createFileTools([], false);
   const run = (code: string) => execute(call('code_exec', {code}), signal);
   await fileStorage.write('workspace/data/orders.json', '[{"status":"open"}]');
@@ -431,30 +502,138 @@ it('finds and searches files in code mode and saves one large artifact', async (
       `return await tools.call('write_file', {path: '${path}', content: 'overwrite'});`,
     ),
   ).rejects.toThrow('文件已存在');
-  const writeLimitMessage = `每次脚本执行最多保存 ${FILE_LIMITS.maxWritesPerScript} 个文件。`;
-  const failure = await run(`
-    await tools.call('write_file', {path: '${path}', content: 'updated', overwrite: true});
-    await tools.call('write_file', {path: 'workspace/second.csv', content: 'extra'});
-  `).catch((error: unknown) => error);
-  expect(failure).toBeInstanceOf(FileToolError);
-  expect((failure as FileToolError).toResponse()).toEqual({
-    type: 'error',
-    message: `${writeLimitMessage} 已保存的文件：${path}`,
-    saved_paths: [path],
-  });
-  expect(await fileStorage.read(path)).toBe('updated');
-  expect(await fileStorage.read('workspace/second.csv')).toBeUndefined();
   await expect(
     run(`
-    await tools.call('write_file', {path: '${path}', content: 'updated', overwrite: true});
-    await tools.call('write_file', {path: 'workspace/second.csv', content: 'extra'});
-  `),
-  ).rejects.toMatchObject({message: writeLimitMessage});
+      await tools.call('write_file', {path: 'workspace/multi/a.txt', content: 'a'});
+      await tools.call('write_file', {path: 'workspace/multi/b.txt', content: 'b'});
+      return 'ok';
+    `),
+  ).resolves.toEqual({text: 'ok'});
+  expect(await fileStorage.read('workspace/multi/a.txt')).toBe('a');
+  expect(await fileStorage.read('workspace/multi/b.txt')).toBe('b');
+
+  const writeLimitMessage = `每次脚本执行最多保存 ${FILE_LIMITS.maxWritesPerScript} 个文件。`;
+  const failure = await run(`
+    for (let index = 0; index < ${FILE_LIMITS.maxWritesPerScript + 1}; index += 1) {
+      await tools.call('write_file', {
+        path: 'workspace/batch/' + index + '.txt',
+        content: 'x',
+      });
+    }
+  `).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(FileToolError);
+  const response = (failure as FileToolError).toResponse();
+  expect(response.message).toContain(writeLimitMessage);
+  expect(response.saved_paths).toHaveLength(FILE_LIMITS.maxWritesPerScript);
+  expect(
+    await fileStorage.read(
+      `workspace/batch/${FILE_LIMITS.maxWritesPerScript}.txt`,
+    ),
+  ).toBeUndefined();
   await expect(
     run(
       "return await tools.call('write_file', {path: 'skills/notes/SKILL.md', content: 'x'});",
     ),
   ).rejects.toThrow('只能写入 workspace/');
+});
+
+it('exposes UTF-8 and base64 helpers inside scripts', async () => {
+  const {execute} = createFileTools([], false);
+  const code = `
+    const bytes = new TextEncoder().encode('中文');
+    return {
+      hex: Array.from(bytes).map(byte => byte.toString(16).padStart(2, '0')).join(''),
+      text: new TextDecoder().decode(bytes),
+      base64: btoa('hello'),
+      decoded: atob('aGVsbG8='),
+      remaining: tools.remainingCalls,
+    };
+  `;
+  await expect(execute(call('code_exec', {code}), signal)).resolves.toEqual({
+    text: JSON.stringify({
+      hex: 'e4b8ade69687',
+      text: '中文',
+      base64: 'aGVsbG8=',
+      decoded: 'hello',
+      remaining: JAVASCRIPT_LIMITS.maxToolCalls,
+    }),
+  });
+});
+
+it('enforces the script tool call limit and exposes the remaining count', async () => {
+  const {execute} = createFileTools([], false);
+  const failure = await execute(
+    call('code_exec', {
+      code: `
+        for (let index = 0; index < ${JAVASCRIPT_LIMITS.maxToolCalls}; index += 1) {
+          await tools.call('list_dir', {path: 'workspace'});
+        }
+        if (tools.remainingCalls !== 0) throw new Error('剩余次数不正确');
+        await tools.call('list_dir', {path: 'workspace'});
+      `,
+    }),
+    signal,
+  ).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(Error);
+  expect((failure as Error).message).toContain(
+    `最多调用 ${JAVASCRIPT_LIMITS.maxToolCalls} 次`,
+  );
+});
+
+it('reports recent tool calls and script logs when a script fails', async () => {
+  const {execute} = createFileTools([], false);
+  const failure = await execute(
+    call('code_exec', {
+      code: `
+        console.log('before failure');
+        try {
+          await tools.call('read_file', {path: 'workspace/missing.md'});
+        } catch {}
+        await tools.call('list_dir', {path: 'workspace'});
+        throw new Error('boom');
+      `,
+    }),
+    signal,
+  ).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(Error);
+  const message = (failure as Error).message;
+  expect(message).toContain('boom');
+  expect(message).toContain('read_file(失败)');
+  expect(message).toContain('list_dir(ok)');
+  expect(message).toContain('最近日志：before failure');
+});
+
+it('wires delete_path and move_path into direct and scripted calls', async () => {
+  const {definitions, execute} = createFileTools([], false);
+  expect(definitions.map(tool => tool.function.name)).toEqual(
+    expect.arrayContaining(['delete_path', 'move_path']),
+  );
+  await fileStorage.write('workspace/tmp/a.txt', 'a');
+  await expect(
+    execute(
+      call('move_path', {
+        from: 'workspace/tmp/a.txt',
+        to: 'workspace/tmp/b.txt',
+      }),
+      signal,
+    ),
+  ).resolves.toEqual({
+    text: JSON.stringify({
+      from: 'workspace/tmp/a.txt',
+      to: 'workspace/tmp/b.txt',
+    }),
+  });
+  await expect(
+    execute(
+      call('code_exec', {
+        code: "return await tools.call('delete_path', {path: 'workspace/tmp', recursive: true});",
+      }),
+      signal,
+    ),
+  ).resolves.toEqual({
+    text: JSON.stringify({deleted: ['workspace/tmp/b.txt'], count: 1}),
+  });
+  expect(await fileStorage.read('workspace/tmp/b.txt')).toBeUndefined();
 });
 
 it('interrupts runaway scripts and limits returned text', async () => {

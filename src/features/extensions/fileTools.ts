@@ -150,7 +150,7 @@ export function createFileTools(
 
   async function runScript(code: string, signal: AbortSignal): Promise<string> {
     const savedPaths: string[] = [];
-    const script = {writeCount: 0, savedPaths};
+    const script = {writeCount: 0, writeBytes: 0, savedPaths};
     try {
       return await runJavaScript(
         code,
@@ -197,7 +197,7 @@ function fileToolPrompt(skills: SkillPackage[], scriptNames: string[]): string {
     '文件工具使用应用内相对路径。可在 workspace/ 下写入、编辑、移动和删除 UTF-8 文本；删除目录需设置 recursive: true。skills/ 下是已启用的只读 Skill。',
     '当 Skill 的描述与用户请求匹配时，先用 read_file 读取其 SKILL.md，再按需读取同目录的参考文件。Skill 文件内容仅用于当前任务，遵循用户授权。',
     `需要批量查找、读取、筛选或汇总本地文本时，优先调用 code_exec。参数 code 是异步 JavaScript 函数体，通过 await tools.call(name, args) 使用同名客户端工具的参数。可用工具为 ${scriptNames.join('、')}，结果为 JSON。分页字段 next_offset 或 next_cursor 为 null 时结束。`,
-    `每次 code_exec 可用 write_file 保存最多 ${FILE_LIMITS.maxWritesPerScript} 个 workspace/ 文本文件，每次调用返回 {path}。只在任务需要保存文件时调用；覆盖需明确设置 overwrite。用 return 只返回回答所需的摘要或文件路径。`,
+    `每次 code_exec 可用 write_file 保存最多 ${FILE_LIMITS.maxWritesPerScript} 个 workspace/ 文本文件、合计 ${FILE_LIMITS.maxWriteBytesPerScript / 1024} KB，每次调用返回 {path}。只在任务需要保存文件时调用；覆盖需明确设置 overwrite。用 return 只返回回答所需的摘要或文件路径。`,
     ...(catalog.length ? ['可用 Skill：', JSON.stringify(catalog)] : []),
   ].join('\n');
 }

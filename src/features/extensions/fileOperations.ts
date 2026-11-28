@@ -426,15 +426,17 @@ export async function readTextFile(
   };
 }
 
-function checkWriteContent(content: string): void {
+function checkWriteContent(content: string): number {
   if (content.includes('\0')) {
     throw new FileToolError('文本内容包含 NUL 字符，无法保存。');
   }
-  if (strToU8(content).length > FILE_LIMITS.maxWriteTextBytes) {
+  const bytes = strToU8(content).length;
+  if (bytes > FILE_LIMITS.maxWriteTextBytes) {
     throw new FileToolError(
       `文本文件最多为 ${FILE_LIMITS.maxWriteTextBytes / 1024} KB。`,
     );
   }
+  return bytes;
 }
 
 // 整个工作区串行写入，因为父子路径也可能互相冲突。
@@ -475,9 +477,10 @@ export async function writeTextFile(
   }: {path: string; content: string; overwrite: boolean},
   workspace: FileToolWorkspace,
   signal: AbortSignal,
+  maxBytes = Number.POSITIVE_INFINITY,
 ) {
   const target = workspaceTextPath(path);
-  checkWriteContent(content);
+  const bytes = checkWriteContent(content);
   return runMutation(signal, async () => {
     const paths = await listWorkspace(workspace);
     checkCancellation(signal);
@@ -496,10 +499,15 @@ export async function writeTextFile(
       );
     }
     if (original === content) {
-      return {path: target, changed: false};
+      return {path: target, changed: false, bytes};
+    }
+    if (bytes > maxBytes) {
+      throw new FileToolError(
+        `本次脚本写入总量将超过 ${FILE_LIMITS.maxWriteBytesPerScript / 1024} KB 上限，请分次执行。`,
+      );
     }
     await saveText(workspace, target, content, signal);
-    return {path: target, changed: true};
+    return {path: target, changed: true, bytes};
   });
 }
 

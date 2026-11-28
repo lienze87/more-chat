@@ -30,7 +30,7 @@ export const JAVASCRIPT_LIMITS = {
   maxCodeLength: 16_000,
   maxToolInputLength: 4_096,
   maxOutputLength: 12_000,
-  maxToolCalls: 32,
+  maxToolCalls: 64,
   maxToolNameLength: 64,
   maxErrorLength: 512,
   timeoutMs: 5_000,
@@ -49,7 +49,9 @@ export const FILE_LIMITS = {
   textPageChars: 16_000,
   maxTailLines: 200,
   directoryPageItems: 100,
-  maxWritesPerScript: 1,
+  maxWritesPerScript: 16,
+  // 单次脚本写入总量，避免一次执行占满应用文档目录。
+  maxWriteBytesPerScript: 1024 * 1024,
 } as const;
 
 // JSON 可将单个控制字符编码为 6 个字符，另留出路径和参数字段的空间。
