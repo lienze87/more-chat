@@ -398,7 +398,7 @@ export function ChatScreen({navigation}: Props) {
               },
               showWelcome ? styles.listContentWelcome : null,
             ]}
-            ListEmptyComponent={<ChatWelcome onSuggestion={submit} />}
+            ListEmptyComponent={<ChatWelcome />}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             onContentSizeChange={scrollToBottom}
@@ -512,6 +512,7 @@ const styles = StyleSheet.create({
   },
   listContentWelcome: {
     flexGrow: 1,
+    justifyContent: 'center',
   },
   userRow: {
     alignItems: 'flex-end',
