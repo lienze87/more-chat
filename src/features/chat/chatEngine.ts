@@ -1,9 +1,8 @@
-import {Platform} from 'react-native';
-import {createId} from '../../utils/ids';
+import {createId} from '../../adapters/platform/ids';
+import {currentPlatform} from '../../adapters/platform/runtimePlatform';
 import {
   buildEnvInfo,
   buildLatestReminder,
-  type RuntimePlatform,
 } from '../../domain/chat/userMetadata';
 import {enabledServerToolCapabilities} from '../../domain/chat/capabilities';
 import {createAssistantMessage} from './streamReducer';
@@ -50,17 +49,6 @@ function findConversation(conversationId: string): Conversation | undefined {
   return useChatStore
     .getState()
     .conversations.find(conversation => conversation.id === conversationId);
-}
-
-/** React Native 的平台标识映射为 env_info 使用的三种运行形态。 */
-function currentPlatform(): RuntimePlatform {
-  if (Platform.OS === 'web') {
-    return 'web';
-  }
-  if (Platform.OS === 'ios') {
-    return 'ios';
-  }
-  return 'android';
 }
 
 /** 把设置里的工具开关翻译成 env_info 里的能力清单。 */

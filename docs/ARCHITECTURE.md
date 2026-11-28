@@ -12,9 +12,10 @@
 L5  app/            组装：Provider、导航、启动引导
 L5  ui/             展示：screens（页面）、components（消息/思考/工具）、primitives（设计系统）、navigation（路由契约）
 L4  features/       状态与编排：chatStore、settingsStore、chatEngine、chatRun、streamReducer
-L2  adapters/       实现：api（请求构造、SSE 传输/解析、错误翻译）、data（AsyncStorage 仓储）
+L2  adapters/       实现：api（请求构造、SSE 传输/解析、错误翻译）、data（AsyncStorage 仓储）、files、js、platform（ID、剪贴板、运行平台）
 L0  domain/         纯逻辑：消息模型、客户端工具参数、引用编号、latest_reminder
 L0  config/         常量与默认系统提示词：存储 key、超时、长度上限
+L0  utils/          跨层纯函数：文本、URL；不得依赖平台或状态层
 ```
 
 依赖只允许自上而下。`domain` 和 `config` 独立于应用层与平台实现，核心逻辑可直接用 Jest 覆盖。
@@ -31,7 +32,8 @@ TypeScript 解析器，读取静态导入、重导出、类型依赖和字面量
 | `config`                    | 不得依赖 `src/` 内的模块                                         |
 | `ui/primitives`、`ui/theme` | 不得依赖 features / adapters / app（主题由调用方注入）           |
 | `ui`                        | 不得依赖 `app`（路由契约由 `ui/navigation` 拥有）                |
-| `features`                  | 不得依赖 ui                                                      |
+| `features`                  | 不得依赖 ui，也不得直接依赖 React Native / Expo 平台包           |
+| `utils`                     | 只放纯函数；不得依赖 features / adapters / ui / app 或平台包     |
 | `adapters`                  | 不得依赖 features / ui / app                                     |
 | 全局                        | 任何模块级别的循环依赖                                           |
 

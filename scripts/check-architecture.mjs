@@ -147,6 +147,17 @@ const RULES = [
     reason: 'features 不得依赖 UI',
   },
   {
+    from: /^src\/features\//,
+    to: /^(?:react|react-native|react-native-.*|expo(?:\/.*)?|expo-.*|@expo\/.*|@react-native\/.*|@react-navigation\/.*)$/,
+    reason:
+      'features 通过 adapters/platform 访问平台能力，保持可脱离 React 测试',
+  },
+  {
+    from: /^src\/utils\//,
+    to: /^(?:react|react-native|react-native-.*|expo(?:\/.*)?|expo-.*|@expo\/.*|@react-native\/.*|@react-navigation\/.*|zustand)$|^src\/(?:features|adapters|ui|app)\//,
+    reason: 'utils 只放跨层纯函数；平台实现与状态放 features/adapters',
+  },
+  {
     from: /^src\/adapters\//,
     to: /^src\/(features|ui|app)\//,
     reason: 'adapters 只做协议/存储实现，不得依赖上层',

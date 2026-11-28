@@ -75,3 +75,16 @@ Windows 下 Jest 需显式设置 `NODE_OPTIONS=--experimental-vm-modules`。
 
 **后果**：新增文件来源（例如未来只读资源目录）只需改 `readAppFile`。`workspaceFiles`
 只保留工作区列表，不再重复提供读取函数。
+
+## ADR-0007：平台能力只经 adapters/platform 进入业务层
+
+**背景**：`chatEngine` 读取 `Platform.OS` 拼环境快照，`utils/ids` 依赖 `expo-crypto`，
+`utils/clipboard` 依赖 `expo-clipboard`。业务层和工具函数直接绑定平台包后，无法在
+不加载 React Native 的环境里测试，`utils` 也不再是纯函数层。
+
+**决定**：新增 `adapters/platform`，容纳 `ids`、`clipboard`（含 Web 实现）和
+`runtimePlatform`。`features` 与 `utils` 禁止导入 React / React Native / Expo /
+React Navigation 包，规则加入架构门禁并配 fixture。
+
+**后果**：feature 层可脱离 React 与平台测试；新增平台能力时先建 adapter，再由
+feature 注入或调用。Web 与原生仍靠 Metro 的平台后缀选择实现。

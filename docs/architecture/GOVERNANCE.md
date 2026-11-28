@@ -50,12 +50,12 @@ App.tsx
 
 跨目录依赖（按目标目录聚合，未计目录内边）：
 
-| 来源       | 目标                                                            |                    边数 | 说明                             |
-| ---------- | --------------------------------------------------------------- | ----------------------: | -------------------------------- |
-| `adapters` | `config` / `domain` / `utils`                                   |              11 / 8 / 1 | 适配器读取常量、领域类型与纯函数 |
-| `features` | `adapters` / `config` / `domain` / `utils`                      |        19 / 13 / 12 / 3 | 编排层组合实现与规则             |
-| `ui`       | `features` / `domain` / `config` / `adapters` / `app` / `utils` | 17 / 15 / 7 / 5 / 5 / 5 | `ui -> app` 是待消除的反向边     |
-| `app`      | `ui` / `features`                                               |                  10 / 3 | 组装入口                         |
+| 来源       | 目标                                                            |                    边数 | 说明                                 |
+| ---------- | --------------------------------------------------------------- | ----------------------: | ------------------------------------ |
+| `adapters` | `config` / `domain` / `utils`                                   |              11 / 8 / 1 | 适配器读取常量、领域类型与纯函数     |
+| `features` | `adapters` / `config` / `domain` / `utils`                      |        19 / 13 / 12 / 3 | 编排层组合实现与规则                 |
+| `ui`       | `features` / `domain` / `config` / `adapters` / `app` / `utils` | 17 / 15 / 7 / 5 / 5 / 5 | 历史基线；`ui -> app` 已在 G-01 消除 |
+| `app`      | `ui` / `features`                                               |                  10 / 3 | 组装入口                             |
 
 高扇入模块（被依赖次数）：`config/appConfig`（30）、`ui/theme/ThemeProvider`（37）、
 `ui/primitives/AppText`（27）、`domain/chat/types`（21）、`ui/primitives/interaction`（16）。
@@ -110,7 +110,7 @@ App.tsx
 | G-02 | 视觉模型名单硬编码在 `chatEngine`，且与 `MODEL_PRESETS` 不一致                    | 模型目录成为唯一来源，导出 `modelSupportsImages` | 低   | 新单测 + chatEngine 用例              | done                                     |
 | G-03 | `webSearch`/`readUrl` 到 API 工具与 `env_info` 文案的映射分散两处                 | 服务端工具能力表 + 派生函数                      | 低   | capability 单测 + requestBuilder 用例 | done                                     |
 | G-04 | Skill 文件读取在 `fileTools` 与 `FilePreviewScreen` 各有一份                      | 统一 `readAppFile`，显式区分 enabled/all         | 中   | 新单测 + 预览手测                     | done                                     |
-| G-05 | `features` 直接依赖 `react-native`，`utils` 直接依赖 Expo                         | 平台能力下沉 `adapters/platform`，加境界规则     | 中   | arch fixture + 全量测试               | todo                                     |
+| G-05 | `features` 直接依赖 `react-native`，`utils` 直接依赖 Expo                         | 平台能力下沉 `adapters/platform`，加境界规则     | 中   | arch fixture + 全量测试               | done                                     |
 | G-06 | `ChatScreen` 同时承担滚动、键盘、抽屉、发送编排                                   | 抽出滚动/键盘 hook 与用户气泡组件                | 中   | typecheck + 手测滚动/键盘             | todo                                     |
 | G-07 | 服务端工具文案与动作解释在 `ToolCallCard` / `ToolProcessDisclosure` 重复          | 单一展示派生模块                                 | 低   | 新单测                                | todo                                     |
 | G-08 | `summarizeToolArguments`、`formatMessageTime` 仅测试使用                          | 删除死代码或接入真实调用方                       | 低   | knip + 全量测试                       | todo                                     |

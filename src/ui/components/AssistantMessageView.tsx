@@ -7,7 +7,7 @@ import type {
   ServerToolCall,
 } from '../../domain/chat/types';
 import {DEFAULT_REFUSAL_MESSAGE} from '../../config/appConfig';
-import {copyText} from '../../utils/clipboard';
+import {copyText} from '../../adapters/platform/clipboard';
 import {useTheme} from '../theme/ThemeProvider';
 import {AppText} from '../primitives/AppText';
 import {Button} from '../primitives/Button';
