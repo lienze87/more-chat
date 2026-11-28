@@ -18,7 +18,7 @@ import {
   type FileToolDefinition,
 } from './tools';
 
-type ToolCallInput = Pick<ClientToolCall, 'name' | 'argumentsText'>;
+type ToolCallInput = Pick<ClientToolCall, 'id' | 'name' | 'argumentsText'>;
 
 function registerTool(name: string, tool: FileToolDefinition) {
   const parameters = z.toJSONSchema(tool.parameters, {
@@ -141,6 +141,7 @@ export function createFileTools(
     }
     return tool.execute(args, {
       signal,
+      callId: call.id,
       workspace,
       script,
       imageBudget,
@@ -156,7 +157,7 @@ export function createFileTools(
         code,
         async (name, argumentsText, scriptSignal) => {
           const result = await invoke(
-            {name, argumentsText},
+            {id: '', name, argumentsText},
             scriptSignal,
             script,
           );
