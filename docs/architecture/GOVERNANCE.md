@@ -143,6 +143,8 @@ App.tsx
 
 ## 基线验证
 
+以下数字是 `main@9d1f75f` 的基线，用于对照每批改动是否保持行为与边界。
+
 | 检查                | 基线结果                                    |
 | ------------------- | ------------------------------------------- |
 | `pnpm arch`         | 95 个模块，359 条内部依赖边，0 循环，0 倒置 |
@@ -151,6 +153,23 @@ App.tsx
 | `pnpm knip`         | 通过                                        |
 | `pnpm format:check` | 145 个文件通过                              |
 | Jest                | 21 个 suite / 199 个用例通过                |
+
+## 当前进展
+
+治理分支 `arch/entropy` 已完成 22 项任务（G-01 至 G-24 中除 G-11、G-12 外的全部
+条目），保留两项待确认事项。当前状态：
+
+| 检查                | 当前结果                                     |
+| ------------------- | -------------------------------------------- |
+| `pnpm arch`         | 109 个模块，394 条内部依赖边，0 循环，0 倒置 |
+| `pnpm typecheck`    | 通过                                         |
+| `pnpm lint`         | 0 warning / 0 error                          |
+| `pnpm knip`         | 通过                                         |
+| `pnpm format:check` | 通过                                         |
+| Jest                | 31 个 suite / 248 个用例通过                 |
+| `pnpm check`        | 通过（格式、lint、架构、类型、knip、测试）   |
+| Expo Web 导出       | 通过                                         |
+| Expo Android 导出   | 通过                                         |
 
 `pnpm test` 直接在 Node 上运行 Jest，不再依赖 POSIX 的 `NODE_OPTIONS=...` 前缀，
 Windows、Linux 与 CI 使用同一条命令。
