@@ -1,47 +1,67 @@
+import {MarkdownIt} from 'react-native-markdown-display';
 import {
+  localFilePathFromHref,
   pathFromToolArguments,
   skillPathParts,
-  toWorkspacePath,
+  toLocalFileLink,
+  toLocalFilePath,
 } from '../src/features/extensions/filePaths';
 
-describe('toWorkspacePath', () => {
-  it('接受 workspace/ 与 skills/ 前缀', () => {
-    expect(toWorkspacePath('workspace/notes.md')).toBe('workspace/notes.md');
-    expect(toWorkspacePath('skills/notes/SKILL.md')).toBe(
-      'skills/notes/SKILL.md',
-    );
-    expect(toWorkspacePath('  workspace/a/b.png  ')).toBe('workspace/a/b.png');
+describe('local file paths', () => {
+  it.each([
+    'workspace/报告/项目 计划.md',
+    'workspace/report..v1.md',
+    'workspace/a/b.png',
+    'skills/notes/references/日报.md',
+  ])('accepts a file with an explicit root: %s', path => {
+    expect(toLocalFilePath(path)).toBe(path);
+    expect(toLocalFileLink(path)).toBe(path);
   });
 
-  it('拒绝代码标识符、URL、绝对路径与越界路径', () => {
-    for (const raw of [
-      '',
-      'package.json',
-      'README.md',
-      'src/config.ts',
-      'https://example.com/notes.md',
-      '#标题',
-      '/etc/passwd.md',
-      '../notes.md',
-      'a\\b.md',
-      'workspace/',
-      'workspace/notes',
-      'notes',
-      'workspace/notes.md 备份.md',
-    ]) {
-      expect(toWorkspacePath(raw)).toBeNull();
-    }
+  it.each([
+    '',
+    'README.md',
+    'reports/notes.md',
+    'https://example.com/notes.md',
+    '/workspace/notes.md',
+    './workspace/notes.md',
+    'workspace/../notes.md',
+    'workspace/./notes.md',
+    'workspace/a\\b.md',
+    'workspace//notes.md',
+    'workspace/',
+    'skills/notes.md',
+    'workspace/' + '文'.repeat(60) + '.md',
+  ])('rejects paths outside the file path format: %s', path => {
+    expect(toLocalFilePath(path)).toBeNull();
   });
 
-  it('仅在显式允许时补全裸文件名', () => {
-    expect(toWorkspacePath('notes.md', {allowBareName: true})).toBe(
-      'workspace/notes.md',
+  it('accepts an extensionless workspace file at an explicit preview entry point', () => {
+    expect(toLocalFilePath('workspace/notes')).toBe('workspace/notes');
+    expect(toLocalFileLink('workspace/notes')).toBeNull();
+  });
+});
+
+describe('Markdown file link targets', () => {
+  const markdown = MarkdownIt({typographer: true});
+
+  it.each([
+    'workspace/日报.md',
+    'workspace/项目 计划.md',
+    'skills/notes/references/report..v1.md',
+  ])('decodes the Markdown parser output for %s', path => {
+    const tokens = markdown.parse(`[打开](<${path}>)`, {});
+    const href = tokens[1].children?.[0].attrGet('href');
+    expect(localFilePathFromHref(href ?? '')).toBe(path);
+  });
+
+  it('decodes once and validates the decoded path', () => {
+    expect(localFilePathFromHref('workspace/report%2520.md')).toBe(
+      'workspace/report%20.md',
     );
-    expect(toWorkspacePath('workspace/notes.md', {allowBareName: true})).toBe(
-      'workspace/notes.md',
-    );
-    // 带目录的路径不会被当成 workspace 下的裸文件名。
-    expect(toWorkspacePath('src/config.ts', {allowBareName: true})).toBeNull();
+    expect(localFilePathFromHref('workspace/%2e%2e/secret.md')).toBeNull();
+    expect(localFilePathFromHref('workspace/%E6.md')).toBeNull();
+    expect(localFilePathFromHref('report.md')).toBeNull();
   });
 });
 
@@ -65,23 +85,26 @@ describe('skillPathParts', () => {
 });
 
 describe('pathFromToolArguments', () => {
-  it('依次尝试 path、to、from，并允许省略 workspace/ 前缀', () => {
-    expect(pathFromToolArguments({path: 'notes.md'})).toBe(
-      'workspace/notes.md',
-    );
-    expect(pathFromToolArguments({to: 'workspace/b.txt'})).toBe(
-      'workspace/b.txt',
-    );
-    expect(pathFromToolArguments({from: 'a.txt'})).toBe('workspace/a.txt');
-    expect(pathFromToolArguments({path: 'notes.md', to: 'x.md'})).toBe(
-      'workspace/notes.md',
+  it('checks path, to, and from for an explicitly rooted file', () => {
+    expect(
+      pathFromToolArguments({
+        path: 'workspace/notes.md',
+        to: 'workspace/b.txt',
+      }),
+    ).toBe('workspace/notes.md');
+    expect(
+      pathFromToolArguments({path: 'notes.md', to: 'workspace/b.txt'}),
+    ).toBe('workspace/b.txt');
+    expect(pathFromToolArguments({from: 'workspace/a.txt'})).toBe(
+      'workspace/a.txt',
     );
   });
 
-  it('忽略非路径参数', () => {
+  it('ignores bare paths and non-path arguments', () => {
     expect(pathFromToolArguments({path: 42})).toBeNull();
     expect(pathFromToolArguments({pattern: '**/*.md'})).toBeNull();
     expect(pathFromToolArguments({path: 'src/config.ts'})).toBeNull();
+    expect(pathFromToolArguments({path: 'notes.md'})).toBeNull();
     expect(pathFromToolArguments({})).toBeNull();
   });
 });

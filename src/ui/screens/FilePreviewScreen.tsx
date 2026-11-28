@@ -14,6 +14,7 @@ import type {RootStackParamList} from '../../app/navigation/types';
 import {
   imageMimeType,
   skillPathParts,
+  toLocalFilePath,
 } from '../../features/extensions/filePaths';
 import {useSkillsStore} from '../../features/extensions/skillsStore';
 import {MarkdownText} from '../components/MarkdownText';
@@ -33,11 +34,15 @@ export function FilePreviewScreen({navigation, route}: Props) {
   const {path} = route.params;
   const name = path.slice(path.lastIndexOf('/') + 1);
   const isMarkdown = /\.(?:md|markdown)$/i.test(name);
-  const imageMime = imageMimeType(name);
+  const imageMime = imageMimeType(path);
   const {colors, spacing} = useTheme();
   const {bottom} = useSafeAreaInsets();
   const load = useCallback(async () => {
-    const skill = skillPathParts(path);
+    const target = toLocalFilePath(path);
+    if (!target) {
+      return undefined;
+    }
+    const skill = skillPathParts(target);
     if (skill) {
       // 预览由用户主动打开，读取任意已安装的只读 Skill；
       // 模型工具仍只开放启用的 Skill，鉴权差异留在工具层。
@@ -48,8 +53,16 @@ export function FilePreviewScreen({navigation, route}: Props) {
         ? files[skill.relative]
         : undefined;
     }
-    return readWorkspaceFile(path);
+    return readWorkspaceFile(target);
   }, [path]);
+  const openFile = useCallback(
+    (target: string) => {
+      if (target !== path) {
+        navigation.push('FilePreview', {path: target});
+      }
+    },
+    [navigation, path],
+  );
   const {result: preview, reload} = useWorkspaceQuery(load);
   const content = preview.status === 'ready' ? preview.value : undefined;
   const [exporting, setExporting] = useState(false);
@@ -105,7 +118,7 @@ export function FilePreviewScreen({navigation, route}: Props) {
               ) : content.length === 0 ? (
                 <AppText tone="secondary">此文件为空。</AppText>
               ) : isMarkdown ? (
-                <MarkdownText content={content} />
+                <MarkdownText content={content} onOpenPath={openFile} />
               ) : (
                 <AppText selectable style={styles.plainText}>
                   {content}

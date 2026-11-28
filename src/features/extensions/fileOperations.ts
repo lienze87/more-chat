@@ -10,7 +10,7 @@ import {
   searchFileText,
   type SearchCursor,
 } from './fileSearch';
-import {imageMimeType, isTextPath, relativePath} from './filePaths';
+import {imageMimeType, isTextPath, localPath, relativePath} from './filePaths';
 import {FileToolError} from './fileToolError';
 
 export interface FileStat {
@@ -44,23 +44,19 @@ function normalizePath(path: string): string {
   }
 }
 
-// 省略前缀时按 workspace/ 解析：notes.md 等价于 workspace/notes.md。
-// skills/ 和 . 保留原义，供只读 Skill 和根目录列出使用。
 function resolvePath(path: string): string {
-  const target = path.replace(/^(?:\.\/)+/, '').replace(/\/+$/, '');
-  if (target === '.') {
-    return target;
+  try {
+    return localPath(path);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new FileToolError(error.message);
+    }
+    throw error;
   }
-  if (target === WORKSPACE || target === SKILLS_ROOT) {
-    return target;
-  }
-  if (
-    target.startsWith(`${WORKSPACE}/`) ||
-    target.startsWith(`${SKILLS_ROOT}/`)
-  ) {
-    return normalizePath(target);
-  }
-  return normalizePath(`${WORKSPACE}/${target}`);
+}
+
+function resolveDirectoryPath(path: string): string {
+  return path === '.' ? path : resolvePath(path.replace(/\/$/, ''));
 }
 
 function workspaceTextPath(path: string): string {
@@ -73,7 +69,7 @@ function workspaceTextPath(path: string): string {
 
 function workspaceTarget(path: string, action: string): string {
   const target = resolvePath(path);
-  if (target === '.' || target === WORKSPACE) {
+  if (target === WORKSPACE) {
     throw new FileToolError('不能操作工作区根目录。');
   }
   if (!target.startsWith(`${WORKSPACE}/`)) {
@@ -86,10 +82,8 @@ function workspaceTarget(path: string, action: string): string {
 
 function textPath(path: string): string {
   const target = resolvePath(path);
-  if (target === '.' || target === WORKSPACE) {
-    throw new FileToolError(
-      '请指定具体文件路径，例如 notes.md 或 workspace/notes.md。',
-    );
+  if (target === WORKSPACE || target === SKILLS_ROOT) {
+    throw new FileToolError('请指定具体文件路径，例如 workspace/notes.md。');
   }
   if (!isTextPath(target)) {
     throw new FileToolError(
@@ -146,7 +140,7 @@ export async function listDirectory(
   {path, offset}: {path: string; offset: number},
   workspace: FileToolWorkspace,
 ) {
-  const directory = resolvePath(path);
+  const directory = resolveDirectoryPath(path);
   const prefix = directory === '.' ? '' : `${directory}/`;
   const paths =
     directory === '.'
@@ -227,7 +221,7 @@ async function matchingPaths(
   {path, pattern}: PathPattern,
   workspace: FileToolWorkspace,
 ) {
-  const directory = resolvePath(path);
+  const directory = resolveDirectoryPath(path);
   const root = directory.split('/')[0];
   const matches = matchFilePattern(normalizePath(pattern));
   const prefix = directory === '.' ? '' : `${directory}/`;
@@ -275,7 +269,7 @@ export async function deletePath(
   workspace: FileToolWorkspace,
   signal: AbortSignal,
 ) {
-  const target = workspaceTarget(path, '删除');
+  const target = workspaceTarget(path.replace(/\/$/, ''), '删除');
   return runMutation(signal, async () => {
     const paths = await listWorkspace(workspace);
     checkCancellation(signal);
