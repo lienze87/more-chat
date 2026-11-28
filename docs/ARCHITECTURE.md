@@ -112,6 +112,8 @@ ChatScreen.submit
 | 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                                          |
 | 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts`                    |
 
+[`code_exec` 设计与维护说明](CODE_EXEC.md)记录脚本接口、宿主工具桥接、各平台的执行后端及验证方式。
+
 ## pnpm 依赖布局
 
 仓库使用 pnpm 的默认 isolated 布局。pnpm 版本以 [CI 配置](../.github/workflows/ci.yml) 为准。

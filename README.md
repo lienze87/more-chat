@@ -35,7 +35,11 @@ pnpm android:build  # 在 build/android/ 生成 release APK
 
 如需按当前 Expo 配置重新生成已有的 `android/`，运行 `pnpm prebuild:clean --platform android`。
 
-Release APK 默认使用调试签名，正式发布前需配置发布签名。iOS 尚未验证。
+Release APK 默认使用调试签名，正式发布前需配置发布签名。
+
+## iOS
+
+安装 Xcode、iOS 模拟器和 CocoaPods 后，运行 `pnpm ios`。生成原生工程时，CocoaPods 会下载 iOS `code_exec` 使用的固定版本 QuickJS。
 
 ## 开发文档
 

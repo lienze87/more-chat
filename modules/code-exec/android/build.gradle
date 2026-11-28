@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.morechat'
+version = '1.0.0'
+
+android {
+  namespace 'com.morechat.codeexec'
+}
+
+dependencies {
+  implementation 'io.github.dokar3:quickjs-kt-android:1.0.19'
+}
