@@ -1,10 +1,19 @@
-export type ReasoningEffort = 'low' | 'high' | 'max';
-export type ThemeMode = 'system' | 'light' | 'dark';
-export type SafetyLevel = 'high' | 'low';
-export type ReminderLanguage = '中文' | 'English';
+import {DEFAULT_MODEL} from './models';
+import type {
+  ReasoningEffort,
+  ReminderLanguage,
+  SafetyLevel,
+  ThemeMode,
+} from './options';
+
+export type {
+  ReasoningEffort,
+  ReminderLanguage,
+  SafetyLevel,
+  ThemeMode,
+} from './options';
 
 export const DEFAULT_BASE_URL = 'https://api.deepseek.com';
-export const DEFAULT_MODEL = 'deepseek-flash';
 
 export interface Settings {
   baseUrl: string;
@@ -35,8 +44,3 @@ export const DEFAULT_SETTINGS: Settings = {
   location: '',
   themeMode: 'system',
 };
-
-export const MODEL_PRESETS = [
-  {label: 'deepseek-flash', value: 'deepseek-flash'},
-  {label: 'deepseek-v4-pro', value: 'deepseek-v4-pro'},
-];

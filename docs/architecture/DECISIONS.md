@@ -37,3 +37,16 @@ Windows 下 Jest 需显式设置 `NODE_OPTIONS=--experimental-vm-modules`。
 
 **后果**：`ui/routes` 成为页面契约的权威位置；新增页面时先改这里。`app` 仍负责
 注册 screen 和选择初始路由。
+
+## ADR-0004：枚举与模型目录共用运行时数据
+
+**背景**：`normalizeSettings` 为 `reasoningEffort`、`safetyLevel`、`themeMode`、
+`language` 各维护一份字符串数组，类型定义另起一套；模型视觉能力在 `chatEngine`
+硬编码，`MODEL_PRESETS` 又不含实验性视觉模型。修改一个枚举或模型需要同步多个文件。
+
+**决定**：`domain/settings/options.ts` 用 `as const` 数组同时导出类型和运行时列表，
+`normalize` 用同一列表校验；`domain/settings/models.ts` 用一张模型能力表派生设置页
+预设、默认模型解析和视觉能力判断。
+
+**后果**：新增枚举值或模型只改一处；未知模型默认不支持图片。`types.ts` 只保留
+`Settings` 形状与默认值，并重导出枚举类型，调用方路径不变。

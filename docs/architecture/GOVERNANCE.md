@@ -82,20 +82,20 @@ App.tsx
 
 ## 单一事实来源
 
-| 关注点                       | 权威位置                                                   | 主要调用方                        |
-| ---------------------------- | ---------------------------------------------------------- | --------------------------------- |
-| 运行时常量、限额、存储 key   | `src/config/appConfig.ts`                                  | 全仓库                            |
-| 默认系统提示词               | `src/config/defaultSystemPrompt.ts`                        | `requestBuilder`                  |
-| 消息 / 工具 / 会话模型       | `src/domain/chat/types.ts`                                 | features、adapters、ui            |
-| 设置默认值与枚举             | `src/domain/settings/types.ts`、`normalize.ts`             | 设置页、请求构造                  |
-| 模型目录与能力               | `src/domain/settings/types.ts`（待迁移到 `models.ts`）     | 设置页、`chatEngine`              |
-| 服务端工具能力               | `src/adapters/api/requestBuilder.ts`（待迁移）             | 请求构造、`env_info`              |
-| 引用编号与 Markdown 标记     | `src/domain/chat/citations.ts`                             | `MarkdownText`、`CitationSources` |
-| 应用内路径规则               | `src/features/extensions/filePaths.ts`                     | 文件工具、预览、Markdown 链接     |
-| 客户端工具契约（Zod schema） | `src/features/extensions/tools/index.ts`                   | 工具声明、参数校验、脚本白名单    |
-| 持久化结构校验               | `src/adapters/data/repositories/conversationRepository.ts` | 冷启动恢复                        |
-| 设计令牌                     | `src/ui/theme/tokens.ts`                                   | 全部 UI                           |
-| 架构边界                     | `scripts/check-architecture.mjs`                           | `pnpm arch`、CI                   |
+| 关注点                       | 权威位置                                                     | 主要调用方                             |
+| ---------------------------- | ------------------------------------------------------------ | -------------------------------------- |
+| 运行时常量、限额、存储 key   | `src/config/appConfig.ts`                                    | 全仓库                                 |
+| 默认系统提示词               | `src/config/defaultSystemPrompt.ts`                          | `requestBuilder`                       |
+| 消息 / 工具 / 会话模型       | `src/domain/chat/types.ts`                                   | features、adapters、ui                 |
+| 设置默认值与枚举             | `src/domain/settings/types.ts`、`options.ts`、`normalize.ts` | 设置页、请求构造                       |
+| 模型目录与能力               | `src/domain/settings/models.ts`                              | 设置页、`chatEngine`、`requestBuilder` |
+| 服务端工具能力               | `src/adapters/api/requestBuilder.ts`（待迁移）               | 请求构造、`env_info`                   |
+| 引用编号与 Markdown 标记     | `src/domain/chat/citations.ts`                               | `MarkdownText`、`CitationSources`      |
+| 应用内路径规则               | `src/features/extensions/filePaths.ts`                       | 文件工具、预览、Markdown 链接          |
+| 客户端工具契约（Zod schema） | `src/features/extensions/tools/index.ts`                     | 工具声明、参数校验、脚本白名单         |
+| 持久化结构校验               | `src/adapters/data/repositories/conversationRepository.ts`   | 冷启动恢复                             |
+| 设计令牌                     | `src/ui/theme/tokens.ts`                                     | 全部 UI                                |
+| 架构边界                     | `scripts/check-architecture.mjs`                             | `pnpm arch`、CI                        |
 
 “唯一来源”指同一语义只有一处定义；展示文案可以派生，但不得各自维护一份规则。
 
@@ -106,7 +106,7 @@ App.tsx
 | ID   | 问题                                                                              | 目标                                             | 风险 | 验证                                  | 状态                                     |
 | ---- | --------------------------------------------------------------------------------- | ------------------------------------------------ | ---- | ------------------------------------- | ---------------------------------------- |
 | G-01 | `ui` 页面依赖 `app/navigation/types`，形成 `ui -> app` 反向边                     | 路由参数契约归 UI，`app` 反向引用                | 低   | typecheck、arch、相关页面手测         | done                                     |
-| G-02 | 视觉模型名单硬编码在 `chatEngine`，且与 `MODEL_PRESETS` 不一致                    | 模型目录成为唯一来源，导出 `modelSupportsImages` | 低   | 新单测 + chatEngine 用例              | todo                                     |
+| G-02 | 视觉模型名单硬编码在 `chatEngine`，且与 `MODEL_PRESETS` 不一致                    | 模型目录成为唯一来源，导出 `modelSupportsImages` | 低   | 新单测 + chatEngine 用例              | done                                     |
 | G-03 | `webSearch`/`readUrl` 到 API 工具与 `env_info` 文案的映射分散两处                 | 服务端工具能力表 + 派生函数                      | 低   | capability 单测 + requestBuilder 用例 | todo                                     |
 | G-04 | Skill 文件读取在 `fileTools` 与 `FilePreviewScreen` 各有一份                      | 统一 `readAppFile`，显式区分 enabled/all         | 中   | 新单测 + 预览手测                     | todo                                     |
 | G-05 | `features` 直接依赖 `react-native`，`utils` 直接依赖 Expo                         | 平台能力下沉 `adapters/platform`，加境界规则     | 中   | arch fixture + 全量测试               | todo                                     |

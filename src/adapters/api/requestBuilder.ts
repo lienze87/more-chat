@@ -4,7 +4,7 @@ import type {
   Conversation,
 } from '../../domain/chat/types';
 import type {Settings} from '../../domain/settings/types';
-import {DEFAULT_MODEL} from '../../domain/settings/types';
+import {resolveModel} from '../../domain/settings/models';
 import {composeUserContent} from '../../domain/chat/userMetadata';
 import {buildSystemPrompt} from '../../config/defaultSystemPrompt';
 import type {
@@ -120,7 +120,7 @@ export function buildChatRequest({
   toolPrompt,
 }: BuildRequestOptions): ChatCompletionRequest {
   const request: ChatCompletionRequest = {
-    model: settings.model.trim() || DEFAULT_MODEL,
+    model: resolveModel(settings.model),
     // 内置提示词始终发送，设置页内容只是追加在它后面的附加要求。
     messages: buildApiMessages(
       conversation,

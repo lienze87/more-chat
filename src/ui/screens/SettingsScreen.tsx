@@ -4,11 +4,11 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/types';
 import {
-  MODEL_PRESETS,
   type ReasoningEffort,
   type SafetyLevel,
   type ThemeMode,
 } from '../../domain/settings/types';
+import {MODEL_PRESETS} from '../../domain/settings/models';
 import {useChatStore} from '../../features/chat/chatStore';
 import {deleteAllConversations} from '../../features/chat/chatEngine';
 import {

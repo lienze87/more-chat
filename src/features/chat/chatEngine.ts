@@ -22,7 +22,7 @@ import {useChatStore} from './chatStore';
 import {useSettingsStore} from '../settings/settingsStore';
 import {createFileTools} from '../extensions/fileTools';
 import {useSkillsStore} from '../extensions/skillsStore';
-import {DEFAULT_MODEL} from '../../domain/settings/types';
+import {modelSupportsImages, resolveModel} from '../../domain/settings/models';
 import {createChatRunController} from './chatRun';
 
 const chatRun = createChatRunController({
@@ -89,12 +89,9 @@ async function runCompletion(params: {
     return;
   }
 
-  const model = settings.model.trim() || DEFAULT_MODEL;
+  const model = resolveModel(settings.model);
   const skills = useSkillsStore.getState().skills;
-  const fileTools = createFileTools(
-    skills,
-    model === 'deepseek-flash' || model === 'deepseek-v4-flash-vision-exp',
-  );
+  const fileTools = createFileTools(skills, modelSupportsImages(model));
   await chatRun.start({
     conversationId,
     assistantId,

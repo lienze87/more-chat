@@ -1,10 +1,11 @@
+import {DEFAULT_SETTINGS, type Settings} from './types';
 import {
-  DEFAULT_SETTINGS,
-  type ReasoningEffort,
-  type SafetyLevel,
-  type Settings,
-  type ThemeMode,
-} from './types';
+  isOneOf,
+  REMINDER_LANGUAGES,
+  REASONING_EFFORTS,
+  SAFETY_LEVELS,
+  THEME_MODES,
+} from './options';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -20,26 +21,6 @@ export function normalizeSettings(raw: unknown): Settings {
     return {...DEFAULT_SETTINGS};
   }
 
-  const reasoningEffort: ReasoningEffort = ['low', 'high', 'max'].includes(
-    raw.reasoningEffort as string,
-  )
-    ? (raw.reasoningEffort as ReasoningEffort)
-    : DEFAULT_SETTINGS.reasoningEffort;
-
-  const safetyLevel: SafetyLevel = ['high', 'low'].includes(
-    raw.safetyLevel as string,
-  )
-    ? (raw.safetyLevel as SafetyLevel)
-    : DEFAULT_SETTINGS.safetyLevel;
-
-  const themeMode: ThemeMode = ['system', 'light', 'dark'].includes(
-    raw.themeMode as string,
-  )
-    ? (raw.themeMode as ThemeMode)
-    : DEFAULT_SETTINGS.themeMode;
-
-  const language = raw.language === 'English' ? 'English' : '中文';
-
   return {
     baseUrl:
       asString(raw.baseUrl, DEFAULT_SETTINGS.baseUrl).trim() ||
@@ -49,13 +30,21 @@ export function normalizeSettings(raw: unknown): Settings {
       DEFAULT_SETTINGS.model,
     systemPrompt: asString(raw.systemPrompt, DEFAULT_SETTINGS.systemPrompt),
     thinking: asBool(raw.thinking, DEFAULT_SETTINGS.thinking),
-    reasoningEffort,
+    reasoningEffort: isOneOf(REASONING_EFFORTS, raw.reasoningEffort)
+      ? raw.reasoningEffort
+      : DEFAULT_SETTINGS.reasoningEffort,
     webSearch: asBool(raw.webSearch, DEFAULT_SETTINGS.webSearch),
     readUrl: asBool(raw.readUrl, DEFAULT_SETTINGS.readUrl),
-    safetyLevel,
+    safetyLevel: isOneOf(SAFETY_LEVELS, raw.safetyLevel)
+      ? raw.safetyLevel
+      : DEFAULT_SETTINGS.safetyLevel,
     autoTitle: asBool(raw.autoTitle, DEFAULT_SETTINGS.autoTitle),
-    language,
+    language: isOneOf(REMINDER_LANGUAGES, raw.language)
+      ? raw.language
+      : DEFAULT_SETTINGS.language,
     location: asString(raw.location, DEFAULT_SETTINGS.location),
-    themeMode,
+    themeMode: isOneOf(THEME_MODES, raw.themeMode)
+      ? raw.themeMode
+      : DEFAULT_SETTINGS.themeMode,
   };
 }
