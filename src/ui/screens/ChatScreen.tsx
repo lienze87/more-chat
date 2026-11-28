@@ -384,70 +384,95 @@ export function ChatScreen({navigation}: Props) {
         behavior={Platform.OS === 'web' ? undefined : 'padding'}
       >
         <ContentColumn style={styles.flex}>
-          <FlatList
-            key={conversation.id}
-            ref={listRef}
-            data={messages}
-            keyExtractor={item => item.id}
-            style={styles.flex}
-            contentContainerStyle={[
-              {
-                paddingHorizontal: theme.spacing.lg,
-                paddingTop: theme.spacing.lg,
-                paddingBottom: theme.spacing.md,
-              },
-              showWelcome ? styles.listContentWelcome : null,
-            ]}
-            ListEmptyComponent={<ChatWelcome />}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            onContentSizeChange={scrollToBottom}
-            onLayout={scrollToBottom}
-            onScroll={handleScroll}
-            onScrollBeginDrag={() => {
-              userScrolling.current = true;
-            }}
-            onMomentumScrollEnd={() => {
-              userScrolling.current = false;
-            }}
-            scrollEventThrottle={16}
-            showsVerticalScrollIndicator={false}
-            renderItem={({item}) => {
-              if (item.role === 'user') {
-                return (
-                  <View style={styles.userRow}>
-                    <View
-                      style={[
-                        styles.userBubble,
-                        {
-                          backgroundColor: theme.colors.userBubble,
-                          borderRadius: theme.radius.lg,
-                          borderBottomRightRadius: theme.radius.xs,
-                          paddingHorizontal: theme.spacing.lg,
-                          paddingVertical: theme.spacing.md,
-                        },
-                      ]}
-                    >
-                      <AppText tone="userBubble">{item.content}</AppText>
+          <View style={styles.flex}>
+            <FlatList
+              key={conversation.id}
+              ref={listRef}
+              data={messages}
+              keyExtractor={item => item.id}
+              style={styles.flex}
+              contentContainerStyle={[
+                {
+                  paddingHorizontal: theme.spacing.lg,
+                  paddingTop: theme.spacing.lg,
+                  paddingBottom: theme.spacing.md,
+                },
+                showWelcome ? styles.listContentWelcome : null,
+              ]}
+              ListEmptyComponent={<ChatWelcome />}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              onContentSizeChange={scrollToBottom}
+              onLayout={scrollToBottom}
+              onScroll={handleScroll}
+              onScrollBeginDrag={() => {
+                userScrolling.current = true;
+              }}
+              onMomentumScrollEnd={() => {
+                userScrolling.current = false;
+              }}
+              scrollEventThrottle={16}
+              showsVerticalScrollIndicator={false}
+              renderItem={({item}) => {
+                if (item.role === 'user') {
+                  return (
+                    <View style={styles.userRow}>
+                      <View
+                        style={[
+                          styles.userBubble,
+                          {
+                            backgroundColor: theme.colors.userBubble,
+                            borderRadius: theme.radius.lg,
+                            borderBottomRightRadius: theme.radius.xs,
+                            paddingHorizontal: theme.spacing.lg,
+                            paddingVertical: theme.spacing.md,
+                          },
+                        ]}
+                      >
+                        <AppText tone="userBubble">{item.content}</AppText>
+                      </View>
                     </View>
+                  );
+                }
+                return (
+                  <View style={styles.assistantRow}>
+                    <AssistantMessageView
+                      message={item}
+                      isStreaming={
+                        isStreaming && item.id === streaming?.messageId
+                      }
+                      onRegenerate={() =>
+                        retryReply(item.id, item.status === 'error')
+                      }
+                    />
                   </View>
                 );
-              }
-              return (
-                <View style={styles.assistantRow}>
-                  <AssistantMessageView
-                    message={item}
-                    isStreaming={
-                      isStreaming && item.id === streaming?.messageId
-                    }
-                    onRegenerate={() =>
-                      retryReply(item.id, item.status === 'error')
-                    }
-                  />
-                </View>
-              );
-            }}
-          />
+              }}
+            />
+            {!following && !showWelcome ? (
+              // 背景与边框放在外层，按压时只让图标变淡，避免浮层变半透明透出消息文字。
+              <View
+                style={[
+                  styles.jumpToLatest,
+                  {
+                    right: theme.spacing.lg,
+                    bottom: theme.spacing.md,
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.borderStrong,
+                    borderRadius: theme.radius.pill,
+                  },
+                ]}
+              >
+                <IconButton
+                  name="chevronDown"
+                  accessibilityLabel="回到最新"
+                  tone="primary"
+                  iconSize={theme.iconSize.lg}
+                  onPress={resumeFollowing}
+                />
+              </View>
+            ) : null}
+          </View>
         </ContentColumn>
 
         {!apiKey.trim() ? (
@@ -490,9 +515,6 @@ export function ChatScreen({navigation}: Props) {
             onChangeText={setInput}
             onSend={() => submit()}
             onStop={stopStreaming}
-            onJumpToLatest={
-              !following && !showWelcome ? resumeFollowing : undefined
-            }
             streaming={isStreaming}
             bottomInset={
               keyboardVisible || webKeyboardInset > 0 ? 0 : insets.bottom
@@ -523,6 +545,10 @@ const styles = StyleSheet.create({
   },
   assistantRow: {
     marginBottom: 20,
+  },
+  jumpToLatest: {
+    position: 'absolute',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   banner: {
     flexDirection: 'row',
