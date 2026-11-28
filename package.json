@@ -23,7 +23,7 @@
     "knip": "knip",
     "arch": "node scripts/check-architecture.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "pnpm test --watch",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
