@@ -3,6 +3,7 @@ import {STORAGE_KEYS} from '../src/config/appConfig';
 import type {ChunkDelta, ChatCompletionChunk} from '../src/adapters/api/types';
 import {
   parseToolArguments,
+  summarizeParsedArguments,
   summarizeToolArguments,
 } from '../src/domain/chat/toolCall';
 import type {AssistantMessage} from '../src/domain/chat/types';
@@ -133,6 +134,10 @@ describe('client tool calls', () => {
 
     expect(summarizeToolArguments(call)).toBe('city=上海 · unit=c');
     expect(summarizeToolArguments({...call, argumentsText: ''})).toBe('');
+    expect(summarizeParsedArguments({city: '上海', unit: 'c'})).toBe(
+      'city=上海 · unit=c',
+    );
+    expect(summarizeParsedArguments({})).toBe('');
   });
 });
 

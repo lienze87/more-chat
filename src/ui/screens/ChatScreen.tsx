@@ -262,6 +262,14 @@ export function ChatScreen({navigation}: Props) {
     navigation.navigate('Settings');
   }, [navigation]);
 
+  const openFile = useCallback(
+    (path: string) => {
+      Keyboard.dismiss();
+      navigation.navigate('FilePreview', {path});
+    },
+    [navigation],
+  );
+
   const submit = useCallback(
     async (override?: string) => {
       const text = (override ?? input).trim();
@@ -475,6 +483,7 @@ export function ChatScreen({navigation}: Props) {
                       onRegenerate={() =>
                         retryReply(item.id, item.status === 'error')
                       }
+                      onOpenFile={openFile}
                     />
                   </View>
                 );

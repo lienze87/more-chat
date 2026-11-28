@@ -15,12 +15,15 @@ import {
   citationNumberFromHref,
   isCitationHref,
 } from '../../domain/chat/citations';
+import {toWorkspacePath} from '../../features/extensions/filePaths';
 import {useTheme} from '../theme/ThemeProvider';
 import type {Theme} from '../theme/tokens';
 
 interface MarkdownTextProps {
   content: string;
   annotations?: CitationAnnotation[];
+  /** 点击 `workspace/…`、`skills/…` 或裸文件名时打开应用内文件。 */
+  onOpenPath?: (path: string) => void;
 }
 
 const markdownIt = MarkdownIt({typographer: true});
@@ -55,11 +58,35 @@ const scrollCode =
     </ScrollView>
   );
 
-const createRules = (citationColor: string): RenderRules => ({
+const createRules = (
+  citationColor: string,
+  onOpenPath?: (path: string) => void,
+): RenderRules => ({
   body: (node, children, parents, styles) =>
     renderRules.body!({...node, key: 'body'}, children, parents, styles),
   code_block: scrollCode(renderRules.code_block!),
   fence: scrollCode(renderRules.fence!),
+  code_inline: (node, children, parents, styles) => {
+    const path = onOpenPath ? toWorkspacePath(node.content ?? '') : null;
+    if (path && onOpenPath) {
+      return (
+        <Text
+          key={node.key}
+          accessibilityRole="link"
+          accessibilityLabel={`打开文件 ${path}`}
+          suppressHighlighting
+          onPress={() => onOpenPath(path)}
+          style={[
+            styles.code_inline,
+            {color: citationColor, textDecorationLine: 'underline'},
+          ]}
+        >
+          {node.content}
+        </Text>
+      );
+    }
+    return renderRules.code_inline!(node, children, parents, styles);
+  },
   table: (node, children, parents, styles) => {
     const columns = node.children[0]?.children[0]?.children.length ?? 1;
     return (
@@ -94,6 +121,24 @@ const createRules = (citationColor: string): RenderRules => ({
         </Text>
       );
     }
+    const path = onOpenPath && href ? toWorkspacePath(href) : null;
+    if (path && onOpenPath) {
+      return (
+        <Text
+          key={node.key}
+          accessibilityRole="link"
+          accessibilityLabel={`打开文件 ${path}`}
+          suppressHighlighting
+          style={{
+            color: citationColor,
+            textDecorationLine: 'underline',
+          }}
+          onPress={() => onOpenPath(path)}
+        >
+          {children}
+        </Text>
+      );
+    }
     return (
       <Text
         key={node.key}
@@ -114,6 +159,7 @@ const createRules = (citationColor: string): RenderRules => ({
 export const MarkdownText = memo(function MarkdownText({
   content,
   annotations,
+  onOpenPath,
 }: MarkdownTextProps) {
   const theme = useTheme();
   const {markdown} = useMemo(
@@ -127,8 +173,8 @@ export const MarkdownText = memo(function MarkdownText({
   const markdownStyles = useMemo(() => createStyles(theme), [theme]);
 
   const rules = useMemo(
-    () => createRules(theme.colors.citation),
-    [theme.colors.citation],
+    () => createRules(theme.colors.citation, onOpenPath),
+    [theme.colors.citation, onOpenPath],
   );
 
   return (

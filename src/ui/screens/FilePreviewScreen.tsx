@@ -1,6 +1,7 @@
 import React, {useCallback, useState} from 'react';
 import {
   ActivityIndicator,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,6 +11,11 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {exportTextFile} from '../../adapters/files/exportTextFile';
 import {readWorkspaceFile} from '../../adapters/files/workspaceFiles';
 import type {RootStackParamList} from '../../app/navigation/types';
+import {
+  imageMimeType,
+  skillPathParts,
+} from '../../features/extensions/filePaths';
+import {useSkillsStore} from '../../features/extensions/skillsStore';
 import {MarkdownText} from '../components/MarkdownText';
 import {useWorkspaceQuery} from '../hooks/useWorkspaceQuery';
 import {AppText} from '../primitives/AppText';
@@ -27,9 +33,23 @@ export function FilePreviewScreen({navigation, route}: Props) {
   const {path} = route.params;
   const name = path.slice(path.lastIndexOf('/') + 1);
   const isMarkdown = /\.(?:md|markdown)$/i.test(name);
+  const imageMime = imageMimeType(name);
   const {colors, spacing} = useTheme();
   const {bottom} = useSafeAreaInsets();
-  const load = useCallback(() => readWorkspaceFile(path), [path]);
+  const load = useCallback(async () => {
+    const skill = skillPathParts(path);
+    if (skill) {
+      // 预览由用户主动打开，读取任意已安装的只读 Skill；
+      // 模型工具仍只开放启用的 Skill，鉴权差异留在工具层。
+      const files = useSkillsStore
+        .getState()
+        .skills.find(item => item.name === skill.name)?.files;
+      return files && Object.hasOwn(files, skill.relative)
+        ? files[skill.relative]
+        : undefined;
+    }
+    return readWorkspaceFile(path);
+  }, [path]);
   const {result: preview, reload} = useWorkspaceQuery(load);
   const content = preview.status === 'ready' ? preview.value : undefined;
   const [exporting, setExporting] = useState(false);
@@ -54,12 +74,14 @@ export function FilePreviewScreen({navigation, route}: Props) {
         title={name}
         onBack={() => navigation.goBack()}
         trailing={
-          <IconButton
-            name={Platform.OS === 'web' ? 'download' : 'share'}
-            accessibilityLabel={exportLabel}
-            disabled={content === undefined || exporting}
-            onPress={exportFile}
-          />
+          imageMime ? undefined : (
+            <IconButton
+              name={Platform.OS === 'web' ? 'download' : 'share'}
+              accessibilityLabel={exportLabel}
+              disabled={content === undefined || exporting}
+              onPress={exportFile}
+            />
+          )
         }
       />
       <ScrollView contentContainerStyle={{paddingBottom: bottom + spacing.lg}}>
@@ -73,7 +95,14 @@ export function FilePreviewScreen({navigation, route}: Props) {
             />
           ) : content !== undefined ? (
             <Card>
-              {content.length === 0 ? (
+              {imageMime ? (
+                <Image
+                  source={{uri: `data:${imageMime};base64,${content}`}}
+                  style={styles.image}
+                  resizeMode="contain"
+                  accessibilityLabel={name}
+                />
+              ) : content.length === 0 ? (
                 <AppText tone="secondary">此文件为空。</AppText>
               ) : isMarkdown ? (
                 <MarkdownText content={content} />
@@ -103,5 +132,9 @@ export function FilePreviewScreen({navigation, route}: Props) {
 const styles = StyleSheet.create({
   plainText: {
     fontFamily: Platform.select({ios: 'Menlo', default: 'monospace'}),
+  },
+  image: {
+    width: '100%',
+    height: 280,
   },
 });

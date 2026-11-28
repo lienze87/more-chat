@@ -1,6 +1,10 @@
 import {toByteArray} from 'base64-js';
 import {strToU8} from 'fflate';
-import {FILE_LIMITS, WORKSPACE_ROOT as WORKSPACE} from '../../config/appConfig';
+import {
+  FILE_LIMITS,
+  SKILLS_ROOT,
+  WORKSPACE_ROOT as WORKSPACE,
+} from '../../config/appConfig';
 import {
   matchFilePattern,
   searchFileText,
@@ -8,8 +12,6 @@ import {
 } from './fileSearch';
 import {imageMimeType, isTextPath, relativePath} from './filePaths';
 import {FileToolError} from './fileToolError';
-
-export const SKILLS_ROOT = 'skills';
 
 export interface FileStat {
   size: number;
