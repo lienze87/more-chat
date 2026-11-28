@@ -20,6 +20,8 @@ import {
 
 export interface FileToolContext {
   signal: AbortSignal;
+  /** 当前客户端工具调用 id，用于把异步提问与消息里的卡片对应起来。 */
+  callId: string;
   workspace: FileToolWorkspace;
   script?: {writeCount: number; writeBytes: number; savedPaths: string[]};
   imageBudget: {remainingChars: number};
