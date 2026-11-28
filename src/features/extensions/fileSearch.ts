@@ -29,14 +29,19 @@ export async function searchFileText({
   cursor,
   read,
   signal,
+  caseSensitive = true,
 }: {
   paths: string[];
   query: string;
   cursor: SearchCursor;
   read: (path: string) => Promise<string | undefined>;
   signal: AbortSignal;
+  caseSensitive?: boolean;
 }) {
   const matches: {path: string; line: number; text: string}[] = [];
+  const insensitive = caseSensitive
+    ? undefined
+    : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   let {file, line, offset} = cursor;
   const {
     matchesPerPage,
@@ -73,7 +78,9 @@ export async function searchFileText({
       chars += nextOffset - offset;
       offset = nextOffset;
       line += 1;
-      const index = text.indexOf(query);
+      const index = insensitive
+        ? (insensitive.exec(text)?.index ?? -1)
+        : text.indexOf(query);
       if (index >= 0) {
         const start = Math.max(0, index - previewCharsBeforeMatch);
         const end = start + previewChars;

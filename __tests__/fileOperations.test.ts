@@ -70,7 +70,7 @@ it('preserves CRLF and leaves the file untouched for a no-op or ambiguous edit',
       workspace,
       signal,
     ),
-  ).resolves.toEqual({path, changed: false});
+  ).resolves.toEqual({path, changed: false, replaced: 1});
   await expect(
     editTextFile(
       {path, old_text: 'pear', new_text: 'peach'},

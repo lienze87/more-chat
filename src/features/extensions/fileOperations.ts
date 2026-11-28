@@ -211,7 +211,17 @@ async function matchingPaths(
     root === SKILLS_ROOT
       ? workspace.skillPaths
       : await listWorkspace(workspace);
-  return (directory === '.' ? paths.concat(workspace.skillPaths) : paths)
+  const scoped = directory === '.' ? paths.concat(workspace.skillPaths) : paths;
+  if (!['.', WORKSPACE, SKILLS_ROOT].includes(directory)) {
+    const directoryPrefix = `${directory}/`;
+    if (scoped.includes(directory)) {
+      throw new FileToolError(`目标是文件，无法作为目录检索：${directory}`);
+    }
+    if (!scoped.some(file => file.startsWith(directoryPrefix))) {
+      throw new FileToolError(`目录不存在：${directory}`);
+    }
+  }
+  return scoped
     .filter(
       file => file.startsWith(prefix) && matches(file.slice(prefix.length)),
     )
@@ -223,9 +233,15 @@ export async function findFiles(
   workspace: FileToolWorkspace,
 ) {
   const paths = await matchingPaths(args, workspace);
+  if (args.offset > paths.length) {
+    throw new FileToolError(
+      `offset 超出结果数，请使用 next_offset：${args.path}`,
+    );
+  }
   const end = args.offset + FILE_LIMITS.directoryPageItems;
   return {
     paths: paths.slice(args.offset, end),
+    total: paths.length,
     next_offset: end < paths.length ? end : null,
   };
 }
@@ -322,6 +338,7 @@ export async function searchText(
     paths,
     query: args.query,
     cursor: args.cursor,
+    caseSensitive: args.case_sensitive ?? true,
     read: async path => {
       const content = await readValue(workspace, path);
       return content?.includes('\0') ? undefined : content;
@@ -337,8 +354,51 @@ function requireText(content: string, path: string): string {
   return content;
 }
 
+function readTail(
+  content: string,
+  count: number,
+  path: string,
+): {
+  content: string;
+  start_line: number;
+  end_line: number;
+  next_offset: null;
+} {
+  if (!content) {
+    return {content: '', start_line: 0, end_line: 0, next_offset: null};
+  }
+  const starts = [0];
+  const newline = /\r\n|[\r\n]/g;
+  while (newline.exec(content)) {
+    starts.push(newline.lastIndex);
+  }
+  const total = Math.max(
+    1,
+    starts.length - (content.endsWith('\n') || content.endsWith('\r') ? 1 : 0),
+  );
+  const startLine = Math.max(0, total - count);
+  const start = starts[startLine] ?? 0;
+  const end = total < starts.length ? starts[total] : content.length;
+  const tail = content.slice(start, end);
+  if (tail.length > FILE_LIMITS.textPageChars) {
+    throw new FileToolError(
+      `tail_lines 结果超过单页字符上限，请减小 tail_lines：${path}`,
+    );
+  }
+  return {
+    content: tail,
+    start_line: startLine + 1,
+    end_line: total,
+    next_offset: null,
+  };
+}
+
 export async function readTextFile(
-  {path, offset}: {path: string; offset: number},
+  {
+    path,
+    offset,
+    tail_lines,
+  }: {path: string; offset: number; tail_lines?: number},
   workspace: FileToolWorkspace,
   signal: AbortSignal,
 ) {
@@ -347,6 +407,9 @@ export async function readTextFile(
     await readExistingFile(workspace, target, signal),
     target,
   );
+  if (tail_lines !== undefined) {
+    return readTail(content, tail_lines, target);
+  }
   if (offset > content.length) {
     throw new FileToolError(
       `offset 超出文件长度，请使用 next_offset：${target}`,
@@ -440,11 +503,12 @@ export async function writeTextFile(
   });
 }
 
-function replaceUnique(
+function replaceText(
   content: string,
   oldText: string,
   newText: string,
-): string {
+  all: boolean,
+): {content: string; replaced: number} {
   if (!oldText) {
     throw new FileToolError('old_text 不能为空。');
   }
@@ -460,17 +524,23 @@ function replaceUnique(
   if (index < 0) {
     throw new FileToolError('old_text 未在文件中找到，请重新读取后再试。');
   }
-  if (content.indexOf(search, index + 1) >= 0) {
+  if (!all && content.indexOf(search, index + 1) >= 0) {
     throw new FileToolError(
-      'old_text 在文件中匹配多处，请提供更精确的唯一文本片段。',
+      'old_text 在文件中匹配多处，请提供更精确的唯一文本片段，或设置 all: true。',
     );
   }
   const replacement = lineEnding
     ? newText.replace(/\r\n|\n/g, lineEnding)
     : newText;
-  return (
-    content.slice(0, index) + replacement + content.slice(index + search.length)
-  );
+  const occurrences = content.split(search).length - 1;
+  return {
+    content: all
+      ? content.split(search).join(replacement)
+      : content.slice(0, index) +
+        replacement +
+        content.slice(index + search.length),
+    replaced: occurrences,
+  };
 }
 
 export async function editTextFile(
@@ -478,7 +548,8 @@ export async function editTextFile(
     path,
     old_text,
     new_text,
-  }: {path: string; old_text: string; new_text: string},
+    all = false,
+  }: {path: string; old_text: string; new_text: string; all?: boolean},
   workspace: FileToolWorkspace,
   signal: AbortSignal,
 ) {
@@ -488,13 +559,13 @@ export async function editTextFile(
       await readExistingFile(workspace, target, signal),
       target,
     );
-    const content = replaceUnique(original, old_text, new_text);
-    if (content === original) {
-      return {path: target, changed: false};
+    const result = replaceText(original, old_text, new_text, all);
+    if (result.content === original) {
+      return {path: target, changed: false, replaced: result.replaced};
     }
-    checkWriteContent(content);
-    await saveText(workspace, target, content, signal);
-    return {path: target, changed: true};
+    checkWriteContent(result.content);
+    await saveText(workspace, target, result.content, signal);
+    return {path: target, changed: true, replaced: result.replaced};
   });
 }
 

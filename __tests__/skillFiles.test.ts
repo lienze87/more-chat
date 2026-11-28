@@ -288,26 +288,32 @@ it('finds files recursively with relative patterns and path pagination', async (
   await fileStorage.write('workspace/[draft].json', '{}');
   expect(await run({path: 'workspace/', pattern: '**/deep?.json'})).toEqual({
     paths: ['workspace/a/b/deep1.json'],
+    total: 1,
     next_offset: null,
   });
   expect(await run({pattern: '**/top.json'})).toEqual({
     paths: ['workspace/top.json'],
+    total: 1,
     next_offset: null,
   });
   expect(await run({path: 'skills', pattern: '**/data.json'})).toEqual({
     paths: ['skills/notes/references/data.json'],
+    total: 1,
     next_offset: null,
   });
   expect(await run({path: 'workspace', pattern: '*.json'})).toEqual({
     paths: ['workspace/[draft].json', 'workspace/top.json'],
+    total: 2,
     next_offset: null,
   });
   expect(await run({path: 'workspace', pattern: '**/?.json'})).toEqual({
     paths: ['workspace/.archive/📄.json'],
+    total: 1,
     next_offset: null,
   });
   expect(await run({path: 'workspace', pattern: '[draft].json'})).toEqual({
     paths: ['workspace/[draft].json'],
+    total: 1,
     next_offset: null,
   });
   await Promise.all(
@@ -325,6 +331,7 @@ it('finds files recursively with relative patterns and path pagination', async (
     await run({path: 'workspace/batch', offset: first.next_offset}),
   ).toEqual({
     paths: ['workspace/batch/100.txt'],
+    total: 101,
     next_offset: null,
   });
   await expect(run({pattern: '../*.json'})).rejects.toThrow('相对路径');

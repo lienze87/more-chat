@@ -87,7 +87,7 @@ async function executeFindFiles(
 }
 
 const findFilesDefinition = {
-  description: `递归查找匹配路径模式的本地文件，返回 {paths, next_offset}，每页最多 ${FILE_LIMITS.directoryPageItems} 项。path 默认是应用内根目录。`,
+  description: `递归查找匹配路径模式的本地文件，返回 {paths, total, next_offset}，每页最多 ${FILE_LIMITS.directoryPageItems} 项。path 默认是应用内根目录，不存在时报错。`,
   parameters: findFilesSchema,
   execute: executeFindFiles,
   programmatic: true,
@@ -154,6 +154,10 @@ const searchTextSchema = z.strictObject({
     .max(FILE_SEARCH_LIMITS.maxQueryLength, queryError)
     .regex(/^[^\r\n]*$/, queryError)
     .describe('要匹配的单行文本'),
+  case_sensitive: z
+    .boolean()
+    .default(true)
+    .describe('默认区分大小写；false 时忽略大小写'),
   cursor,
 });
 
@@ -166,13 +170,24 @@ async function executeSearchText(
 
 const searchTextDefinition = {
   description:
-    '递归搜索 UTF-8 文本文件中的区分大小写的字面量。返回 {matches: [{path, line, text}], next_cursor}。即使本页没有命中，只要 next_cursor 非 null 就可继续。',
+    '递归搜索 UTF-8 文本文件中的字面量，默认区分大小写（case_sensitive: false 可忽略）。返回 {matches: [{path, line, text}], next_cursor}。即使本页没有命中，只要 next_cursor 非 null 就可继续。',
   parameters: searchTextSchema,
   execute: executeSearchText,
   programmatic: true,
 } satisfies FileToolDefinition<typeof searchTextSchema>;
 
-const readFileSchema = z.strictObject({path: pathParam, offset});
+const readFileSchema = z.strictObject({
+  path: pathParam,
+  offset,
+  tail_lines: z
+    .int({error: '必须是正整数。'})
+    .min(1, {error: '必须是正整数。'})
+    .max(FILE_LIMITS.maxTailLines)
+    .optional()
+    .describe(
+      `读取末尾 N 行（1 到 ${FILE_LIMITS.maxTailLines}），优先于 offset；返回 start_line/end_line`,
+    ),
+});
 
 async function executeReadFile(
   args: z.output<typeof readFileSchema>,
@@ -182,7 +197,7 @@ async function executeReadFile(
 }
 
 const readFileDefinition = {
-  description: `按 UTF-16 字符偏移分页读取 UTF-8 文本，每页最多 ${FILE_LIMITS.textPageChars} 字符。`,
+  description: `按 UTF-16 字符偏移分页读取 UTF-8 文本，每页最多 ${FILE_LIMITS.textPageChars} 字符；也可用 tail_lines 读取末尾 N 行。`,
   parameters: readFileSchema,
   execute: executeReadFile,
   programmatic: true,
@@ -231,17 +246,21 @@ const editFileSchema = z.strictObject({
   path: pathParam,
   old_text: stringParam.min(1, '不能为空。'),
   new_text: stringParam,
+  all: z.boolean().default(false),
 });
 
 async function executeEditFile(
   args: z.output<typeof editFileSchema>,
   {workspace, signal}: FileToolContext,
 ): Promise<FileToolResult> {
-  return {text: writeMessage(await editTextFile(args, workspace, signal))};
+  return {
+    text: JSON.stringify(await editTextFile(args, workspace, signal)),
+  };
 }
 
 const editFileDefinition = {
-  description: '在 workspace/ 的 UTF-8 文本文件中精确替换唯一匹配的 old_text。',
+  description:
+    '在 workspace/ 的 UTF-8 文本文件中替换 old_text，返回 {path, changed, replaced}。默认要求唯一匹配；all: true 替换全部。',
   parameters: editFileSchema,
   execute: executeEditFile,
 } satisfies FileToolDefinition<typeof editFileSchema>;

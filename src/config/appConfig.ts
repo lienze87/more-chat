@@ -47,6 +47,7 @@ export const FILE_LIMITS = {
   maxWriteTextBytes: 256 * 1024,
   maxImageOutputCharsPerRun: 4 * 1024 * 1024,
   textPageChars: 16_000,
+  maxTailLines: 200,
   directoryPageItems: 100,
   maxWritesPerScript: 1,
 } as const;
