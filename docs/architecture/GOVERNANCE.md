@@ -116,6 +116,7 @@ App.tsx
 | G-08 | `summarizeToolArguments`、`formatMessageTime` 仅测试使用                          | 删除死代码或接入真实调用方                       | 低   | knip + 全量测试                       | done                                     |
 | G-09 | `fileTools` / `FileToolSnapshot` 命名与实际内容（含 `ask_user`、`code_exec`）不符 | 统一为客户端工具命名                             | 中   | 全量测试 + typecheck                  | done                                     |
 | G-13 | 引用来源编号在 `extractCitationSources` 与 `buildCitedMarkdown` 各算一次          | 角标编号与来源列表共用同一排序/去重结果          | 低   | citations 单测                        | done                                     |
+| G-14 | `chatClient` 硬编码默认 Base URL，与设置默认值重复                                | 复用 `DEFAULT_BASE_URL`，补 URL 构造单测         | 低   | chatClient 单测                       | done                                     |
 | G-10 | 架构门禁保留未实现的 `runtime` 规则                                               | 删除规划规则；引入时再加                         | 低   | arch + 门禁自测                       | done                                     |
 | G-11 | 持久化结构校验与 `domain` 类型是两套手写定义                                      | 评估用同一 schema 派生，或明确校验层职责         | 高   | 兼容性样本 + 全量测试                 | deferred（需评估旧数据兼容策略）         |
 | G-12 | 日志只有零散 `console.warn`，无统一观测出口                                       | 评估是否引入最小 logger；客户端暂无远端采集需求  | 低   | 设计确认                              | deferred（无明确产品需求，避免新增抽象） |

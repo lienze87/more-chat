@@ -1,4 +1,5 @@
 import type {ChatCompletionChunk, ChatCompletionRequest} from './types';
+import {DEFAULT_BASE_URL} from '../../domain/settings/types';
 import {ApiError} from './errors';
 import {openSseTransport, SseTransportHandle} from './sseTransport';
 
@@ -19,7 +20,7 @@ export interface StreamChatHandle {
 
 export function chatCompletionsUrl(baseUrl: string): string {
   const trimmed = (baseUrl || '').trim().replace(/\/+$/, '');
-  const base = trimmed || 'https://api.deepseek.com';
+  const base = trimmed || DEFAULT_BASE_URL;
   if (base.endsWith('/chat/completions')) {
     return base;
   }
