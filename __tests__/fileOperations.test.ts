@@ -248,6 +248,60 @@ it('enforces a byte budget on a single save', async () => {
   ).resolves.toEqual({path: 'workspace/a.md', changed: true, bytes: 3});
 });
 
+it('treats paths without the workspace prefix as workspace files', async () => {
+  const {workspace, files} = createWorkspace({
+    'workspace/notes.md': '笔记',
+    'workspace/dir/a.md': 'a',
+  });
+  await expect(
+    readTextFile({path: 'notes.md', offset: 0}, workspace, signal),
+  ).resolves.toEqual({content: '笔记', next_offset: null});
+  await expect(
+    listDirectory({path: 'dir', offset: 0}, workspace),
+  ).resolves.toMatchObject({entries: [{name: 'a.md', type: 'file', size: 1}]});
+  await expect(
+    findFiles({path: '.', pattern: '**/a.md', offset: 0}, workspace),
+  ).resolves.toMatchObject({paths: ['workspace/dir/a.md']});
+
+  await writeTextFile(
+    {path: '洛神赋.md', content: '# 洛神赋', overwrite: false},
+    workspace,
+    signal,
+  );
+  expect(files.get('workspace/洛神赋.md')).toBe('# 洛神赋');
+  await expect(
+    editTextFile(
+      {path: '洛神赋.md', old_text: '# 洛神赋', new_text: '# 洛神赋 并序'},
+      workspace,
+      signal,
+    ),
+  ).resolves.toEqual({
+    path: 'workspace/洛神赋.md',
+    changed: true,
+    replaced: 1,
+  });
+  await expect(
+    movePath(
+      {from: '洛神赋.md', to: 'drafts/洛神赋.md', overwrite: false},
+      workspace,
+      signal,
+    ),
+  ).resolves.toEqual({
+    from: 'workspace/洛神赋.md',
+    to: 'workspace/drafts/洛神赋.md',
+  });
+  await expect(
+    deletePath({path: 'drafts/洛神赋.md', recursive: false}, workspace, signal),
+  ).resolves.toEqual({deleted: ['workspace/drafts/洛神赋.md'], count: 1});
+  await expect(
+    writeTextFile(
+      {path: 'skills/notes/SKILL.md', content: 'x', overwrite: true},
+      workspace,
+      signal,
+    ),
+  ).rejects.toThrow('只能写入');
+});
+
 it('reads the last lines with tail_lines', async () => {
   const path = 'workspace/log.txt';
   const {workspace} = createWorkspace({[path]: 'a\nb\nc\n'});

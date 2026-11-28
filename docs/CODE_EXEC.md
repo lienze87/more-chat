@@ -36,7 +36,7 @@ return {paths, next_offset};
 
 `write_file` 在脚本内返回 `{path}`。覆盖已有文件需要指定 `overwrite: true`。单次脚本执行最多完成 16 次 `write_file`、内容合计 1 MiB；相同内容的成功调用也占用次数，但内容未变化时不占字节。已完成的写入会保留。如果脚本随后失败且该失败被记录为工具结果，`FileToolError` 会附带 `saved_paths`。取消会停止等待工具结果，文件写入能否停止取决于取消发生时操作是否已经开始提交。 [文件操作](../src/features/extensions/fileOperations.ts) · [工具错误格式](../src/features/extensions/fileToolError.ts)
 
-`delete_path` 只操作 `workspace/`，单文件默认删除；删除目录必须设置 `recursive: true`，并返回实际删除的 `{deleted, count}`。工作区根目录和 `skills/` 不允许删除。`move_path` 只移动文件，支持同目录重命名和跨目录移动；目标已存在时需要 `overwrite: true`，目录移动暂不支持。
+`delete_path` 只操作 `workspace/`，单文件默认删除；删除目录必须设置 `recursive: true`，并返回实际删除的 `{deleted, count}`。工作区根目录和 `skills/` 不允许删除。`move_path` 只移动文件，支持同目录重命名和跨目录移动；目标已存在时需要 `overwrite: true`，目录移动暂不支持。工具参数中的路径默认相对 `workspace/` 解析，可以省略 `workspace/` 前缀（`notes.md` 等同于 `workspace/notes.md`）；只读 `skills/` 需要显式写全。
 
 ## 平台实现与资源限制
 

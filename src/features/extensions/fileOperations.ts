@@ -31,10 +31,6 @@ interface PathPattern {
   pattern: string;
 }
 
-function directoryPath(path: string): string {
-  return path === '.' ? path : normalizePath(path.replace(/\/$/, ''));
-}
-
 function normalizePath(path: string): string {
   try {
     return relativePath(path);
@@ -46,27 +42,53 @@ function normalizePath(path: string): string {
   }
 }
 
+// 省略前缀时按 workspace/ 解析：notes.md 等价于 workspace/notes.md。
+// skills/ 和 . 保留原义，供只读 Skill 和根目录列出使用。
+function resolvePath(path: string): string {
+  const target = path.replace(/^(?:\.\/)+/, '').replace(/\/+$/, '');
+  if (target === '.') {
+    return target;
+  }
+  if (target === WORKSPACE || target === SKILLS_ROOT) {
+    return target;
+  }
+  if (
+    target.startsWith(`${WORKSPACE}/`) ||
+    target.startsWith(`${SKILLS_ROOT}/`)
+  ) {
+    return normalizePath(target);
+  }
+  return normalizePath(`${WORKSPACE}/${target}`);
+}
+
 function workspaceTextPath(path: string): string {
   const target = textPath(path);
   if (!target.startsWith(`${WORKSPACE}/`)) {
-    throw new FileToolError('只能写入 workspace/ 下的文件。');
+    throw new FileToolError('只能写入 workspace/ 下的文件，skills/ 为只读。');
   }
   return target;
 }
 
 function workspaceTarget(path: string, action: string): string {
-  const target = normalizePath(path.replace(/\/+$/, '') || path);
-  if (target === WORKSPACE) {
+  const target = resolvePath(path);
+  if (target === '.' || target === WORKSPACE) {
     throw new FileToolError('不能操作工作区根目录。');
   }
   if (!target.startsWith(`${WORKSPACE}/`)) {
-    throw new FileToolError(`只能${action} workspace/ 下的文件。`);
+    throw new FileToolError(
+      `只能${action} workspace/ 下的文件，skills/ 为只读。`,
+    );
   }
   return target;
 }
 
 function textPath(path: string): string {
-  const target = normalizePath(path);
+  const target = resolvePath(path);
+  if (target === '.' || target === WORKSPACE) {
+    throw new FileToolError(
+      '请指定具体文件路径，例如 notes.md 或 workspace/notes.md。',
+    );
+  }
   if (!isTextPath(target)) {
     throw new FileToolError(
       '请选择 Markdown、JSON 或其他支持的 UTF-8 文本文件。',
@@ -122,7 +144,7 @@ export async function listDirectory(
   {path, offset}: {path: string; offset: number},
   workspace: FileToolWorkspace,
 ) {
-  const directory = directoryPath(path);
+  const directory = resolvePath(path);
   const prefix = directory === '.' ? '' : `${directory}/`;
   const paths =
     directory === '.'
@@ -203,7 +225,7 @@ async function matchingPaths(
   {path, pattern}: PathPattern,
   workspace: FileToolWorkspace,
 ) {
-  const directory = directoryPath(path);
+  const directory = resolvePath(path);
   const root = directory.split('/')[0];
   const matches = matchFilePattern(normalizePath(pattern));
   const prefix = directory === '.' ? '' : `${directory}/`;
@@ -604,7 +626,7 @@ export async function readImageFile(
   signal: AbortSignal,
   budget: {remainingChars: number},
 ) {
-  const target = normalizePath(path);
+  const target = resolvePath(path);
   const mime = imageMimeType(target);
   if (!mime) {
     throw new FileToolError('请选择 PNG、JPEG、GIF 或 WebP 图片。');

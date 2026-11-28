@@ -169,6 +169,24 @@ it('lists and safely creates, reads and edits workspace files', async () => {
   ).rejects.toThrow('相对路径');
 });
 
+it('treats paths without a prefix as workspace files', async () => {
+  const {execute} = createFileTools([], false);
+  const path = '洛神赋.md';
+  await expect(
+    execute(call('write_file', {path, content: '# 洛神赋'}), signal),
+  ).resolves.toEqual({text: '已保存 workspace/洛神赋.md'});
+  expect(await fileStorage.read('workspace/洛神赋.md')).toBe('# 洛神赋');
+  await expect(execute(call('read_file', {path}), signal)).resolves.toEqual({
+    text: JSON.stringify({content: '# 洛神赋', next_offset: null}),
+  });
+  await expect(
+    execute(call('delete_path', {path, recursive: false}), signal),
+  ).resolves.toEqual({
+    text: JSON.stringify({deleted: ['workspace/洛神赋.md'], count: 1}),
+  });
+  expect(await fileStorage.keys()).toEqual([]);
+});
+
 it('replaces every match when edit_file receives all', async () => {
   const {execute} = createFileTools([], false);
   const path = 'workspace/repeat.txt';

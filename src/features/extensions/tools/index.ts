@@ -46,10 +46,13 @@ export interface FileToolDefinition<Schema extends z.ZodType = z.ZodType> {
 const stringParam = z.string({error: '必须是字符串。'});
 const pathParam = stringParam
   .min(1, '不能为空。')
-  .describe('工作区内的相对路径');
+  .describe('相对路径，可省略 workspace/ 前缀，例如 notes.md');
+const skillPathParam = pathParam.describe(
+  '相对路径，可省略 workspace/ 前缀，例如 notes.md；Skill 文件需写全 skills/<名称>/文件名',
+);
 const directory = pathParam
   .default('.')
-  .describe('目录的相对路径，默认是应用内根目录');
+  .describe('目录的相对路径，默认是应用内根目录（.），可省略 workspace/ 前缀');
 const offset = z
   .int({error: '必须是非负整数。'})
   .nonnegative({error: '必须是非负整数。'})
@@ -71,7 +74,7 @@ async function executeListDirectory(
 }
 
 const listDirectoryDefinition = {
-  description: `列出目录的直接子项，返回 {entries, total, next_offset}。文件项含 size（字节）和 mtime（ISO 时间，Web 端无 mtime）。每页最多 ${FILE_LIMITS.directoryPageItems} 项。`,
+  description: `列出目录的直接子项，返回 {entries, total, next_offset}。path 默认是应用内根目录，省略 workspace/ 前缀时按 workspace/ 解析。文件项含 size（字节）和 mtime（ISO 时间，Web 端无 mtime）。每页最多 ${FILE_LIMITS.directoryPageItems} 项。`,
   parameters: listDirectorySchema,
   execute: executeListDirectory,
   programmatic: true,
@@ -87,7 +90,7 @@ async function executeFindFiles(
 }
 
 const findFilesDefinition = {
-  description: `递归查找匹配路径模式的本地文件，返回 {paths, total, next_offset}，每页最多 ${FILE_LIMITS.directoryPageItems} 项。path 默认是应用内根目录，不存在时报错。`,
+  description: `递归查找匹配路径模式的本地文件，返回 {paths, total, next_offset}，每页最多 ${FILE_LIMITS.directoryPageItems} 项。path 默认是应用内根目录，省略 workspace/ 前缀时按 workspace/ 解析；目录不存在时报错。`,
   parameters: findFilesSchema,
   execute: executeFindFiles,
   programmatic: true,
@@ -107,7 +110,7 @@ async function executeDeletePath(
 
 const deletePathDefinition = {
   description:
-    '删除 workspace/ 下的文件或目录，返回 {deleted, count}。删除目录需设置 recursive: true；skills/ 只读。',
+    '删除 workspace/ 下的文件或目录，返回 {deleted, count}。path 可省略 workspace/ 前缀。删除目录需设置 recursive: true；skills/ 只读。',
   parameters: deletePathSchema,
   execute: executeDeletePath,
   programmatic: true,
@@ -128,7 +131,7 @@ async function executeMovePath(
 
 const movePathDefinition = {
   description:
-    '移动或重命名 workspace/ 下的文本文件，返回 {from, to}。目标已存在需设置 overwrite；skills/ 只读。',
+    '移动或重命名 workspace/ 下的文本文件，返回 {from, to}。from、to 可省略 workspace/ 前缀。目标已存在需设置 overwrite；skills/ 只读。',
   parameters: movePathSchema,
   execute: executeMovePath,
   programmatic: true,
@@ -170,14 +173,14 @@ async function executeSearchText(
 
 const searchTextDefinition = {
   description:
-    '递归搜索 UTF-8 文本文件中的字面量，默认区分大小写（case_sensitive: false 可忽略）。返回 {matches: [{path, line, text}], next_cursor}。即使本页没有命中，只要 next_cursor 非 null 就可继续。',
+    '递归搜索 UTF-8 文本文件中的字面量，默认区分大小写（case_sensitive: false 可忽略）。path 省略 workspace/ 前缀时按 workspace/ 解析。返回 {matches: [{path, line, text}], next_cursor}。即使本页没有命中，只要 next_cursor 非 null 就可继续。',
   parameters: searchTextSchema,
   execute: executeSearchText,
   programmatic: true,
 } satisfies FileToolDefinition<typeof searchTextSchema>;
 
 const readFileSchema = z.strictObject({
-  path: pathParam,
+  path: skillPathParam,
   offset,
   tail_lines: z
     .int({error: '必须是正整数。'})
@@ -197,7 +200,7 @@ async function executeReadFile(
 }
 
 const readFileDefinition = {
-  description: `按 UTF-16 字符偏移分页读取 UTF-8 文本，每页最多 ${FILE_LIMITS.textPageChars} 字符；也可用 tail_lines 读取末尾 N 行。`,
+  description: `按 UTF-16 字符偏移分页读取 UTF-8 文本，每页最多 ${FILE_LIMITS.textPageChars} 字符；也可用 tail_lines 读取末尾 N 行。path 省略 workspace/ 前缀时按 workspace/ 解析，Skill 文件需写全 skills/<名称>/文件名。`,
   parameters: readFileSchema,
   execute: executeReadFile,
   programmatic: true,
@@ -243,7 +246,7 @@ async function executeWriteFile(
 
 const writeFileDefinition = {
   description:
-    '在 workspace/ 创建 UTF-8 文本文件。覆盖已有文件需设置 overwrite。',
+    '在 workspace/ 创建 UTF-8 文本文件，path 可写成 notes.md 或 workspace/notes.md。覆盖已有文件需设置 overwrite。',
   parameters: writeFileSchema,
   execute: executeWriteFile,
   programmatic: true,
@@ -268,12 +271,12 @@ async function executeEditFile(
 
 const editFileDefinition = {
   description:
-    '在 workspace/ 的 UTF-8 文本文件中替换 old_text，返回 {path, changed, replaced}。默认要求唯一匹配；all: true 替换全部。',
+    '在 workspace/ 的 UTF-8 文本文件中替换 old_text，返回 {path, changed, replaced}。path 可省略 workspace/ 前缀。默认要求唯一匹配；all: true 替换全部。',
   parameters: editFileSchema,
   execute: executeEditFile,
 } satisfies FileToolDefinition<typeof editFileSchema>;
 
-const readImageSchema = z.strictObject({path: pathParam});
+const readImageSchema = z.strictObject({path: skillPathParam});
 
 async function executeReadImage(
   args: z.output<typeof readImageSchema>,
@@ -287,7 +290,8 @@ async function executeReadImage(
 }
 
 const readImageDefinition = {
-  description: '读取 PNG、JPEG、GIF 或 WebP 图片并交给视觉模型。',
+  description:
+    '读取 PNG、JPEG、GIF 或 WebP 图片并交给视觉模型。path 省略 workspace/ 前缀时按 workspace/ 解析。',
   parameters: readImageSchema,
   execute: executeReadImage,
   requiresImages: true,
