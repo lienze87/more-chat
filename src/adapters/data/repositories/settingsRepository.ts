@@ -5,8 +5,7 @@ import {readJson, writeJson} from '../storage/jsonStorage';
 
 export const settingsRepository = {
   async load(): Promise<Settings> {
-    const raw = await readJson<unknown>(STORAGE_KEYS.settings, null);
-    return normalizeSettings(raw);
+    return normalizeSettings(await readJson(STORAGE_KEYS.settings));
   },
   async save(settings: Settings): Promise<void> {
     await writeJson(STORAGE_KEYS.settings, settings);

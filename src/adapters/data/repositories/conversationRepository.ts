@@ -94,7 +94,7 @@ function restoreMessage(message: ChatMessage, updatedAt: number): ChatMessage {
 
 export const conversationRepository = {
   async load(): Promise<Conversation[]> {
-    const raw = await readJson<unknown>(STORAGE_KEYS.conversations, []);
+    const raw = await readJson(STORAGE_KEYS.conversations);
     const conversations = Array.isArray(raw) ? raw.filter(isConversation) : [];
     for (const conversation of conversations) {
       conversation.messages = conversation.messages.map(message =>

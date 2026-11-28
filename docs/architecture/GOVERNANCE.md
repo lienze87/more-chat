@@ -121,6 +121,7 @@ App.tsx
 | G-15 | `skillsStore` 直接操作 fileStorage，JSON.parse 无校验                             | 引入 skillRepository，校验并跳过损坏记录         | 中   | repository/store 单测                 | done                                     |
 | G-16 | `AssistantMessageView` 内嵌思考合并与工具分组，无法独立测试                       | 抽出 assistantTimeline 纯函数并补单测            | 低   | timeline 单测                         | done                                     |
 | G-17 | `pnpm test` 使用 POSIX 环境变量前缀，Windows 本地直接失败                         | 用 Node 参数运行 Jest，跨平台一条命令            | 低   | Windows/CI 实际运行 `pnpm test`       | done                                     |
+| G-18 | `readJson<T>` 用泛型把未验证的 JSON 伪装成具体类型                                | 返回 unknown，由仓储校验                         | 低   | jsonStorage/仓储单测                  | done                                     |
 | G-10 | 架构门禁保留未实现的 `runtime` 规则                                               | 删除规划规则；引入时再加                         | 低   | arch + 门禁自测                       | done                                     |
 | G-11 | 持久化结构校验与 `domain` 类型是两套手写定义                                      | 评估用同一 schema 派生，或明确校验层职责         | 高   | 兼容性样本 + 全量测试                 | deferred（需评估旧数据兼容策略）         |
 | G-12 | 日志只有零散 `console.warn`，无统一观测出口                                       | 评估是否引入最小 logger；客户端暂无远端采集需求  | 低   | 设计确认                              | deferred（无明确产品需求，避免新增抽象） |
