@@ -157,3 +157,15 @@ adapter 反向依赖 features。校验要求 name/description/enabled/files 类�
 **后果**：单个损坏 Skill 不再拖垮列表；store 只负责状态与并发安装去重。需要
 排查损坏数据时可在 repository 的 load 结果上扩展诊断信息，而不是在 store 里解析
 JSON。
+
+## ADR-0013：助手消息的时间线归并是独立的纯逻辑
+
+**背景**：`AssistantMessageView` 内嵌 `toBlocks`（合并相邻 thinking、保留正文索引）
+与 `groupToolProcess`（把正文前的思考/工具折叠成过程组）。这两段决定时间线语义，
+却只能通过完整渲染间接验证。
+
+**决定**：抽到 `ui/components/assistantTimeline.ts`，导出块类型、`toBlocks` 和
+`groupToolProcess`；组件只负责把块映射成卡片/文本。
+
+**后果**：思考合并、时长、流式标记、工具分组和客户端工具顺序都有单测覆盖；组件
+文件缩小，新增块类型时先改时间线模块。
