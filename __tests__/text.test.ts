@@ -1,17 +1,4 @@
-import {
-  formatDuration,
-  formatTokenCount,
-  fallbackTitle,
-  truncate,
-} from '../src/utils/text';
-
-describe('formatTokenCount', () => {
-  it('groups thousands', () => {
-    expect(formatTokenCount(999)).toBe('999');
-    expect(formatTokenCount(1234)).toBe('1,234');
-    expect(formatTokenCount(1234567)).toBe('1,234,567');
-  });
-});
+import {formatDuration, fallbackTitle, truncate} from '../src/utils/text';
 
 describe('formatDuration', () => {
   it('shows seconds under a minute', () => {

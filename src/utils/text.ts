@@ -45,11 +45,6 @@ export function formatRelativeTime(
   return `${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
-/** 1234 → "1,234"，让 token 数一眼能读出量级。 */
-export function formatTokenCount(tokens: number): string {
-  return String(Math.round(tokens)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
 /** 思考耗时：不足一分钟只说秒数，超过一分钟补上分钟。 */
 export function formatDuration(durationMs: number): string {
   const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
