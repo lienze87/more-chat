@@ -169,3 +169,17 @@ JSON。
 
 **后果**：思考合并、时长、流式标记、工具分组和客户端工具顺序都有单测覆盖；组件
 文件缩小，新增块类型时先改时间线模块。
+
+## ADR-0014：会话变更统一经 updateConversation，只在真实变化时写盘
+
+**背景**：`chatStore` 的每个变更器都手写 `conversations.map(...)`、判断 id、调用
+`touch` 和 `persist`。未知会话或已删除消息也会走一遍 map 并安排持久化；新增变更器
+时容易漏掉 `touch` 或重复写盘。
+
+**决定**：store 内部提供 `updateConversation(id, updater)`：先按 id 找到目标，
+`updater` 返回原对象/`null` 表示无变化；只有返回新对象时才替换数组并调用
+`persist`。所有会话级变更器改走该入口。
+
+**后果**：状态更新与持久化规则只在一处；流式回调落到已删除的消息上不会写盘。
+`deleteConversation` / `deleteAllConversations` 仍直接 set，因为它们改变的是列表
+本身而不是单个会话。

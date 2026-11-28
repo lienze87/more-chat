@@ -68,81 +68,95 @@ const touch = (conversation: Conversation): Conversation => ({
   updatedAt: Date.now(),
 });
 
-export const useChatStore = create<ChatState>()(set => ({
-  conversations: [],
-  streaming: null,
-  hydrated: false,
+type ConversationUpdater = (conversation: Conversation) => Conversation | null;
 
-  hydrate: async () => {
-    const conversations = await conversationRepository.load();
-    set({conversations, hydrated: true, streaming: null});
-  },
-
-  createConversation: () => {
-    const now = Date.now();
-    const conversation: Conversation = {
-      id: createId('conv'),
-      title: '新对话',
-      titleSource: 'fallback',
-      createdAt: now,
-      updatedAt: now,
-      messages: [],
-    };
-    set(state => ({conversations: [conversation, ...state.conversations]}));
-    persist();
-    return conversation;
-  },
-
-  deleteConversation: conversationId => {
-    set(state => ({
-      conversations: state.conversations.filter(
-        conversation => conversation.id !== conversationId,
-      ),
-    }));
-    persist();
-  },
-
-  deleteAllConversations: () => {
-    set({conversations: []});
-    persist();
-  },
-
-  renameConversation: (conversationId, title) => {
-    const nextTitle = title.trim();
-    if (!nextTitle) {
+export const useChatStore = create<ChatState>()((set, get) => {
+  /**
+   * 只更新目标对话，并在确实变化时触发一次持久化。
+   *
+   * 返回 `null` 或原对象表示无变化，避免流式回调落到已删除的消息上时仍写盘。
+   */
+  const updateConversation = (
+    conversationId: string,
+    update: ConversationUpdater,
+  ) => {
+    const {conversations} = get();
+    const index = conversations.findIndex(
+      conversation => conversation.id === conversationId,
+    );
+    if (index < 0) {
       return;
     }
-    set(state => ({
-      conversations: state.conversations.map(conversation =>
-        conversation.id === conversationId
-          ? {
-              ...touch(conversation),
-              title: nextTitle,
-              titleSource: 'user',
-            }
-          : conversation,
-      ),
-    }));
+    const next = update(conversations[index]);
+    if (next === null || next === conversations[index]) {
+      return;
+    }
+    const updated = conversations.slice();
+    updated[index] = next;
+    set({conversations: updated});
     persist();
-  },
+  };
 
-  clearMessages: conversationId => {
-    set(state => ({
-      conversations: state.conversations.map(conversation =>
-        conversation.id === conversationId
-          ? {...touch(conversation), messages: []}
-          : conversation,
-      ),
-    }));
-    persist();
-  },
+  return {
+    conversations: [],
+    streaming: null,
+    hydrated: false,
 
-  startExchange: (conversationId, userMessage, assistantMessage) => {
-    set(state => ({
-      conversations: state.conversations.map(conversation => {
-        if (conversation.id !== conversationId) {
-          return conversation;
-        }
+    hydrate: async () => {
+      const conversations = await conversationRepository.load();
+      set({conversations, hydrated: true, streaming: null});
+    },
+
+    createConversation: () => {
+      const now = Date.now();
+      const conversation: Conversation = {
+        id: createId('conv'),
+        title: '新对话',
+        titleSource: 'fallback',
+        createdAt: now,
+        updatedAt: now,
+        messages: [],
+      };
+      set(state => ({conversations: [conversation, ...state.conversations]}));
+      persist();
+      return conversation;
+    },
+
+    deleteConversation: conversationId => {
+      set(state => ({
+        conversations: state.conversations.filter(
+          conversation => conversation.id !== conversationId,
+        ),
+      }));
+      persist();
+    },
+
+    deleteAllConversations: () => {
+      set({conversations: []});
+      persist();
+    },
+
+    renameConversation: (conversationId, title) => {
+      const nextTitle = title.trim();
+      if (!nextTitle) {
+        return;
+      }
+      updateConversation(conversationId, conversation => ({
+        ...touch(conversation),
+        title: nextTitle,
+        titleSource: 'user',
+      }));
+    },
+
+    clearMessages: conversationId => {
+      updateConversation(conversationId, conversation => ({
+        ...touch(conversation),
+        messages: [],
+      }));
+    },
+
+    startExchange: (conversationId, userMessage, assistantMessage) => {
+      updateConversation(conversationId, conversation => {
         const shouldSetTitle =
           conversation.messages.length === 0 &&
           conversation.titleSource !== 'user';
@@ -153,34 +167,21 @@ export const useChatStore = create<ChatState>()(set => ({
             : conversation.title,
           messages: [...conversation.messages, userMessage, assistantMessage],
         };
-      }),
-    }));
-    persist();
-  },
+      });
+    },
 
-  addAssistantMessage: (conversationId, assistantMessage) => {
-    set(state => ({
-      conversations: state.conversations.map(conversation =>
-        conversation.id === conversationId
-          ? {
-              ...touch(conversation),
-              messages: [...conversation.messages, assistantMessage],
-            }
-          : conversation,
-      ),
-    }));
-    persist();
-  },
+    addAssistantMessage: (conversationId, assistantMessage) => {
+      updateConversation(conversationId, conversation => ({
+        ...touch(conversation),
+        messages: [...conversation.messages, assistantMessage],
+      }));
+    },
 
-  appendAssistantChunks: (conversationId, messageId, chunks) => {
-    if (chunks.length === 0) {
-      return;
-    }
-    set(state => ({
-      conversations: state.conversations.map(conversation => {
-        if (conversation.id !== conversationId) {
-          return conversation;
-        }
+    appendAssistantChunks: (conversationId, messageId, chunks) => {
+      if (chunks.length === 0) {
+        return;
+      }
+      updateConversation(conversationId, conversation => {
         let changed = false;
         const messages = conversation.messages.map(message => {
           if (message.id !== messageId || message.role !== 'assistant') {
@@ -194,17 +195,11 @@ export const useChatStore = create<ChatState>()(set => ({
           return next;
         });
         return changed ? {...touch(conversation), messages} : conversation;
-      }),
-    }));
-    persist();
-  },
+      });
+    },
 
-  updateAssistantMessage: (conversationId, messageId, updater) => {
-    set(state => ({
-      conversations: state.conversations.map(conversation => {
-        if (conversation.id !== conversationId) {
-          return conversation;
-        }
+    updateAssistantMessage: (conversationId, messageId, updater) => {
+      updateConversation(conversationId, conversation => {
         let changed = false;
         const messages = conversation.messages.map(message => {
           if (message.id !== messageId || message.role !== 'assistant') {
@@ -215,17 +210,11 @@ export const useChatStore = create<ChatState>()(set => ({
           return next;
         });
         return changed ? {...touch(conversation), messages} : conversation;
-      }),
-    }));
-    persist();
-  },
+      });
+    },
 
-  truncateFrom: (conversationId, messageId) => {
-    set(state => ({
-      conversations: state.conversations.map(conversation => {
-        if (conversation.id !== conversationId) {
-          return conversation;
-        }
+    truncateFrom: (conversationId, messageId) => {
+      updateConversation(conversationId, conversation => {
         const index = conversation.messages.findIndex(
           message => message.id === messageId,
         );
@@ -236,29 +225,24 @@ export const useChatStore = create<ChatState>()(set => ({
           ...touch(conversation),
           messages: conversation.messages.slice(0, index),
         };
-      }),
-    }));
-    persist();
-  },
+      });
+    },
 
-  applyAutoTitle: (conversationId, title) => {
-    const nextTitle = title.trim();
-    if (!nextTitle) {
-      return;
-    }
-    set(state => ({
-      conversations: state.conversations.map(conversation =>
-        conversation.id === conversationId &&
+    applyAutoTitle: (conversationId, title) => {
+      const nextTitle = title.trim();
+      if (!nextTitle) {
+        return;
+      }
+      updateConversation(conversationId, conversation =>
         conversation.titleSource !== 'user'
           ? {...conversation, title: nextTitle, titleSource: 'auto'}
           : conversation,
-      ),
-    }));
-    persist();
-  },
+      );
+    },
 
-  setStreaming: streaming => set({streaming}),
-}));
+    setStreaming: streaming => set({streaming}),
+  };
+});
 
 export const sortConversationsByRecency = (
   conversations: Conversation[],

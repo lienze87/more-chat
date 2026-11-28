@@ -184,6 +184,29 @@ describe('chatStore', () => {
     expect(message.error).toBe('网络连接失败');
   });
 
+  it('does not touch state for unknown conversations or messages', () => {
+    useChatStore.setState({
+      conversations: [conversation('c1', {messages: [assistantMessage('a1')]})],
+    });
+    const before = useChatStore.getState();
+
+    useChatStore
+      .getState()
+      .updateAssistantMessage('missing', 'a1', message => ({
+        ...message,
+        status: 'error',
+      }));
+    expect(useChatStore.getState()).toBe(before);
+
+    useChatStore
+      .getState()
+      .updateAssistantMessage('c1', 'missing', message => ({
+        ...message,
+        status: 'error',
+      }));
+    expect(useChatStore.getState()).toBe(before);
+  });
+
   it('truncates from a message so regenerate can rewrite it and later turns', () => {
     useChatStore.setState({
       conversations: [
