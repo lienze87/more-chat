@@ -43,6 +43,7 @@ export const JAVASCRIPT_LIMITS = {
 } as const;
 
 export const WORKSPACE_ROOT = 'workspace';
+export const SKILLS_ROOT = 'skills';
 
 export const FILE_LIMITS = {
   maxPathBytes: 170,

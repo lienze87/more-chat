@@ -26,6 +26,8 @@ interface AssistantMessageViewProps {
   message: AssistantMessage;
   isStreaming: boolean;
   onRegenerate: () => void;
+  /** 点击回复里的本地路径时打开文件预览。 */
+  onOpenFile?: (path: string) => void;
 }
 
 type ThinkingSegment = Extract<AssistantSegment, {kind: 'thinking'}>;
@@ -137,6 +139,7 @@ export function AssistantMessageView({
   message,
   isStreaming,
   onRegenerate,
+  onOpenFile,
 }: AssistantMessageViewProps) {
   const theme = useTheme();
   const {colors, spacing} = theme;
@@ -206,6 +209,7 @@ export function AssistantMessageView({
             <ClientToolCard
               key={`client-tool-${block.call.id}-${index}`}
               call={block.call}
+              onOpenFile={onOpenFile}
             />
           );
         }
@@ -214,6 +218,7 @@ export function AssistantMessageView({
             key={`text-${block.segmentIndex}`}
             content={block.text}
             annotations={annotations}
+            onOpenPath={onOpenFile}
           />
         );
       })}
