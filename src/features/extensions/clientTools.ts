@@ -12,7 +12,7 @@ import type {FileToolWorkspace} from './fileOperations';
 import {imageMimeType} from './filePaths';
 import {readAppFile} from './appFiles';
 import {FileToolError} from './fileToolError';
-import type {SkillPackage} from './skillPackage';
+import type {SkillPackage} from '../../domain/skills/types';
 import {
   clientToolDefinitions,
   type ClientToolContext,

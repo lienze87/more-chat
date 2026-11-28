@@ -95,6 +95,7 @@ ChatScreen.submit
 ## 持久化
 
 - AsyncStorage 存放 `settings` 和 `conversations`。
+- Skill 包通过 `skillRepository` 保存到 `fileStorage` 的 `skill/*` 键，加载时校验结构并跳过损坏记录。
 - 会话写入使用 `createThrottledSaver`：流式期间按 [`PERSISTENCE_INTERVALS.conversationsThrottleMs`](../src/config/appConfig.ts) 合并写入，应用退到后台时立即提交待写数据。
 - 读取时校验当前会话结构，并将中断的生成和工具调用收尾。
 - 原生端通过 `credentialsRepository` 将 API Key 保存至 SecureStore，Web 端由

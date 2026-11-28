@@ -65,17 +65,17 @@ App.tsx
 
 ## 状态所有权
 
-| 状态                     | 权威位置                          | 持久化                               | 备注                                                                 |
-| ------------------------ | --------------------------------- | ------------------------------------ | -------------------------------------------------------------------- |
-| 会话列表、消息、标题     | `features/chat/chatStore`         | AsyncStorage `conversations`         | 冷启动修复中断的流式/工具状态                                        |
-| 当前运行、流式缓冲、取消 | `features/chat/chatRun`           | 无                                   | `chatStore.streaming` 是给 React 的镜像，两者只由 `chatRun` 同步写入 |
-| 设置                     | `features/settings/settingsStore` | AsyncStorage `settings`              | 写入前统一 `normalizeSettings`                                       |
-| API Key                  | `features/settings/settingsStore` | SecureStore（原生）/ 页面内存（Web） | 不在 AsyncStorage 中                                                 |
-| Skill 列表               | `features/extensions/skillsStore` | `fileStorage` 的 `skill/*`           | 导入后按名称排序                                                     |
-| 待回答的 `ask_user`      | `features/extensions/askUser`     | 无                                   | 冷启动由持久化层收尾                                                 |
-| 对话框队列               | `ui/primitives/dialogStore`       | 无                                   | 全局 `DialogHost` 渲染                                               |
-| 主题                     | `ui/theme/ThemeProvider`          | 设置持久化                           | `ThemeMode` 由 domain 定义                                           |
-| 页面临时状态             | 各 screen                         | 无                                   | 选中会话、输入草稿、滚动跟随、键盘 inset                             |
+| 状态                     | 权威位置                          | 持久化                                         | 备注                                                                 |
+| ------------------------ | --------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------- |
+| 会话列表、消息、标题     | `features/chat/chatStore`         | AsyncStorage `conversations`                   | 冷启动修复中断的流式/工具状态                                        |
+| 当前运行、流式缓冲、取消 | `features/chat/chatRun`           | 无                                             | `chatStore.streaming` 是给 React 的镜像，两者只由 `chatRun` 同步写入 |
+| 设置                     | `features/settings/settingsStore` | AsyncStorage `settings`                        | 写入前统一 `normalizeSettings`                                       |
+| API Key                  | `features/settings/settingsStore` | SecureStore（原生）/ 页面内存（Web）           | 不在 AsyncStorage 中                                                 |
+| Skill 列表               | `features/extensions/skillsStore` | `skillRepository` → `fileStorage` 的 `skill/*` | 导入后按名称排序                                                     |
+| 待回答的 `ask_user`      | `features/extensions/askUser`     | 无                                             | 冷启动由持久化层收尾                                                 |
+| 对话框队列               | `ui/primitives/dialogStore`       | 无                                             | 全局 `DialogHost` 渲染                                               |
+| 主题                     | `ui/theme/ThemeProvider`          | 设置持久化                                     | `ThemeMode` 由 domain 定义                                           |
+| 页面临时状态             | 各 screen                         | 无                                             | 选中会话、输入草稿、滚动跟随、键盘 inset                             |
 
 共享可变状态只允许出现在 store 内；模块级变量仅用于进程级单例（`chatRun`、
 `pendingMutation`、QuickJS engine），并在测试里通过模块隔离重置。
@@ -95,6 +95,7 @@ App.tsx
 | 应用内文件读取               | `src/features/extensions/appFiles.ts`                        | 文件工具、文件预览                     |
 | 客户端工具契约（Zod schema） | `src/features/extensions/toolDefinitions.ts`                 | 工具声明、参数校验、脚本白名单         |
 | 持久化结构校验               | `src/adapters/data/repositories/conversationRepository.ts`   | 冷启动恢复                             |
+| Skill 持久化契约             | `src/adapters/data/repositories/skillRepository.ts`          | Skill 状态、文件工具                   |
 | 设计令牌                     | `src/ui/theme/tokens.ts`                                     | 全部 UI                                |
 | 架构边界                     | `scripts/check-architecture.mjs`                             | `pnpm arch`、CI                        |
 
@@ -117,6 +118,7 @@ App.tsx
 | G-09 | `fileTools` / `FileToolSnapshot` 命名与实际内容（含 `ask_user`、`code_exec`）不符 | 统一为客户端工具命名                             | 中   | 全量测试 + typecheck                  | done                                     |
 | G-13 | 引用来源编号在 `extractCitationSources` 与 `buildCitedMarkdown` 各算一次          | 角标编号与来源列表共用同一排序/去重结果          | 低   | citations 单测                        | done                                     |
 | G-14 | `chatClient` 硬编码默认 Base URL，与设置默认值重复                                | 复用 `DEFAULT_BASE_URL`，补 URL 构造单测         | 低   | chatClient 单测                       | done                                     |
+| G-15 | `skillsStore` 直接操作 fileStorage，JSON.parse 无校验                             | 引入 skillRepository，校验并跳过损坏记录         | 中   | repository/store 单测                 | done                                     |
 | G-10 | 架构门禁保留未实现的 `runtime` 规则                                               | 删除规划规则；引入时再加                         | 低   | arch + 门禁自测                       | done                                     |
 | G-11 | 持久化结构校验与 `domain` 类型是两套手写定义                                      | 评估用同一 schema 派生，或明确校验层职责         | 高   | 兼容性样本 + 全量测试                 | deferred（需评估旧数据兼容策略）         |
 | G-12 | 日志只有零散 `console.warn`，无统一观测出口                                       | 评估是否引入最小 logger；客户端暂无远端采集需求  | 低   | 设计确认                              | deferred（无明确产品需求，避免新增抽象） |

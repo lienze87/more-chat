@@ -141,3 +141,19 @@ URL → 编号映射插入角标；两者共用 `sortedValidCitations`。
 
 **后果**：正文角标与来源列表天然一致；非 `url_citation` 数据被统一忽略。代价是
 `buildCitedMarkdown` 多一次 `sources` 遍历，但引用量很小，可忽略。
+
+## ADR-0012：Skill 持久化经 repository，损坏记录隔离
+
+**背景**：`skillsStore` 直接拼 `skill/<name>` key、调用 `fileStorage`，并用
+`JSON.parse(record) as SkillPackage` 信任磁盘内容。一条损坏记录会让整个 hydrate
+失败；key 与包内名称不一致时还会留下无法清理的孤儿记录。这与其他数据仓储
+（settings / conversations）的分层也不一致。
+
+**决定**：新增 `adapters/data/repositories/skillRepository.ts`，集中 key 规则、
+结构校验、读取与写入；`SkillPackage` 类型迁到 `domain/skills/types.ts`，避免
+adapter 反向依赖 features。校验要求 name/description/enabled/files 类型正确、
+文件内容均为字符串，且 key 后缀与包名一致；无效记录被跳过而不是中断整次加载。
+
+**后果**：单个损坏 Skill 不再拖垮列表；store 只负责状态与并发安装去重。需要
+排查损坏数据时可在 repository 的 load 结果上扩展诊断信息，而不是在 store 里解析
+JSON。

@@ -1,7 +1,7 @@
 import {fileStorage} from '../../adapters/files/fileStorage';
 import {WORKSPACE_ROOT} from '../../config/appConfig';
 import {skillPathParts} from './filePaths';
-import type {SkillPackage} from './skillPackage';
+import type {SkillPackage} from '../../domain/skills/types';
 
 /**
  * Skill 文件访问级别。

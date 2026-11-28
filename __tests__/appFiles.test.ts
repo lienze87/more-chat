@@ -1,6 +1,6 @@
 import {fileStorage} from '../src/adapters/files/fileStorage';
 import {readAppFile, readSkillFile} from '../src/features/extensions/appFiles';
-import type {SkillPackage} from '../src/features/extensions/skillPackage';
+import type {SkillPackage} from '../src/domain/skills/types';
 
 jest.mock('../src/adapters/files/fileStorage', () => ({
   fileStorage: {read: jest.fn()},
