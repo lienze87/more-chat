@@ -88,3 +88,16 @@ React Navigation 包，规则加入架构门禁并配 fixture。
 
 **后果**：feature 层可脱离 React 与平台测试；新增平台能力时先建 adapter，再由
 feature 注入或调用。Web 与原生仍靠 Metro 的平台后缀选择实现。
+
+## ADR-0008：页面只做编排，滚动与键盘状态归 UI hooks
+
+**背景**：`ChatScreen` 同时保存 `activeId`、输入草稿、抽屉、滚动跟随、键盘
+inset，还包含 rAF 合并、`FlatList` ref、用户滚动判定和 Web `visualViewport`
+分支。页面级状态与可复用的交互机制混在一起，修改滚动策略需要读完整页面。
+
+**决定**：把滚动跟随拆到 `useChatAutoScroll`，键盘避让拆到 `useKeyboardInset`，
+用户气泡拆到 `UserMessageBubble`。滚动“是否切换跟随”的判断抽成纯函数
+`resolveFollowing`，用单测覆盖原生与 Web 的差异。
+
+**后果**：`ChatScreen` 只保留页面编排与发送/重试流程；滚动策略可独立测试。hook
+是 UI 内部实现，不引入跨层依赖，也不需要新的全局状态。
