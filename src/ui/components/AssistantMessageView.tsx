@@ -3,7 +3,6 @@ import {ActivityIndicator, StyleSheet, View} from 'react-native';
 import type {
   AssistantMessage,
   AssistantSegment,
-  CitationAnnotation,
   ClientToolCall,
   ServerToolCall,
 } from '../../domain/chat/types';
@@ -41,7 +40,7 @@ type Block =
     }
   | {kind: 'tool'; call: ServerToolCall}
   | {kind: 'client_tool'; call: ClientToolCall}
-  | {kind: 'text'; text: string};
+  | {kind: 'text'; text: string; segmentIndex: number};
 
 type ProcessStep = Extract<Block, {kind: 'thinking' | 'tool'}>;
 type DisplayBlock = Block | {kind: 'process'; steps: ProcessStep[]};
@@ -115,7 +114,7 @@ function toBlocks(message: AssistantMessage): Block[] {
     thinking = [];
   };
 
-  for (const segment of message.segments) {
+  for (const [segmentIndex, segment] of message.segments.entries()) {
     if (segment.kind === 'thinking') {
       thinking.push(segment);
       continue;
@@ -126,7 +125,7 @@ function toBlocks(message: AssistantMessage): Block[] {
     } else if (segment.kind === 'client_tool') {
       blocks.push({kind: 'client_tool', call: segment.call});
     } else if (segment.kind === 'text') {
-      blocks.push({kind: 'text', text: segment.text});
+      blocks.push({kind: 'text', text: segment.text, segmentIndex});
     }
   }
   flushThinking();
@@ -145,8 +144,7 @@ export function AssistantMessageView({
   const textBlocks = blocks.filter(
     (block): block is Extract<Block, {kind: 'text'}> => block.kind === 'text',
   );
-  const annotations: CitationAnnotation[] =
-    textBlocks.length === 1 ? message.annotations : [];
+  const annotations = textBlocks.length === 1 ? message.annotations : undefined;
   const displayBlocks =
     !isStreaming && message.status === 'complete' && textBlocks.length > 0
       ? groupToolProcess(blocks)
@@ -212,9 +210,11 @@ export function AssistantMessageView({
           );
         }
         return (
-          <View key={`text-${index}`}>
-            <MarkdownText content={block.text} annotations={annotations} />
-          </View>
+          <MarkdownText
+            key={`text-${block.segmentIndex}`}
+            content={block.text}
+            annotations={annotations}
+          />
         );
       })}
 

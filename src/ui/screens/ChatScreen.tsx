@@ -14,6 +14,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../../app/navigation/types';
 import type {ChatMessage} from '../../domain/chat/types';
+import {CHAT_SCROLL_BOTTOM_TOLERANCE} from '../../config/appConfig';
 import {
   clearMessages,
   deleteConversation,
@@ -44,7 +45,6 @@ import {ContentColumn, PageHeader, Screen} from '../primitives/Screen';
 import {useTheme} from '../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
-const BOTTOM_TOLERANCE = 12;
 
 /**
  * 首页：当前对话的消息流 + 输入区。
@@ -83,6 +83,7 @@ export function ChatScreen({navigation}: Props) {
   const autoScroll = useRef(true);
   const lastOffset = useRef(0);
   const userScrolling = useRef(false);
+  const scrollFrame = useRef<number | null>(null);
 
   const isStreaming = streaming?.conversationId === conversation?.id;
   const messages = conversation?.messages ?? [];
@@ -144,10 +145,29 @@ export function ChatScreen({navigation}: Props) {
   }, [drawerVisible]);
 
   const scrollToBottom = useCallback(() => {
-    if (autoScroll.current) {
-      listRef.current?.getNativeScrollRef()?.scrollToEnd({animated: false});
+    if (
+      !autoScroll.current ||
+      userScrolling.current ||
+      scrollFrame.current !== null
+    ) {
+      return;
     }
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      if (autoScroll.current && !userScrolling.current) {
+        listRef.current?.getNativeScrollRef()?.scrollToEnd({animated: false});
+      }
+    });
   }, []);
+
+  useEffect(
+    () => () => {
+      if (scrollFrame.current !== null) {
+        cancelAnimationFrame(scrollFrame.current);
+      }
+    },
+    [],
+  );
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
@@ -155,11 +175,15 @@ export function ChatScreen({navigation}: Props) {
       contentSize.height - (contentOffset.y + layoutMeasurement.height);
     const movingUp = contentOffset.y < lastOffset.current;
     lastOffset.current = contentOffset.y;
-    if (distance <= BOTTOM_TOLERANCE && !autoScroll.current) {
+    if (
+      distance <= CHAT_SCROLL_BOTTOM_TOLERANCE &&
+      !autoScroll.current &&
+      !movingUp
+    ) {
       autoScroll.current = true;
       setFollowing(true);
     } else if (
-      distance > BOTTOM_TOLERANCE &&
+      distance > CHAT_SCROLL_BOTTOM_TOLERANCE &&
       movingUp &&
       autoScroll.current &&
       (userScrolling.current || Platform.OS === 'web')
@@ -167,6 +191,11 @@ export function ChatScreen({navigation}: Props) {
       autoScroll.current = false;
       setFollowing(false);
     }
+  };
+
+  const stopUserScroll = () => {
+    userScrolling.current = false;
+    scrollToBottom();
   };
 
   const resumeFollowing = useCallback(() => {
@@ -408,9 +437,11 @@ export function ChatScreen({navigation}: Props) {
               onScrollBeginDrag={() => {
                 userScrolling.current = true;
               }}
-              onMomentumScrollEnd={() => {
-                userScrolling.current = false;
+              onScrollEndDrag={stopUserScroll}
+              onMomentumScrollBegin={() => {
+                userScrolling.current = true;
               }}
+              onMomentumScrollEnd={stopUserScroll}
               scrollEventThrottle={16}
               showsVerticalScrollIndicator={false}
               renderItem={({item}) => {
