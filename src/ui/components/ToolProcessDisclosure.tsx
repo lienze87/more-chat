@@ -5,30 +5,7 @@ import {AppText} from '../primitives/AppText';
 import {Icon} from '../primitives/Icon';
 import {webPointer} from '../primitives/interaction';
 import {useTheme} from '../theme/ThemeProvider';
-
-function describeProcess(calls: ServerToolCall[]): string {
-  const labels: string[] = [];
-  if (calls.some(call => call.action?.type === 'search')) {
-    labels.push('联网搜索');
-  }
-  const pages = new Set<string>();
-  for (const call of calls) {
-    const action = call.action;
-    if (
-      call.status === 'completed' &&
-      (action?.type === 'open_page' || action?.type === 'read_link')
-    ) {
-      const url = call.page?.url ?? action.url;
-      if (typeof url === 'string' && url) {
-        pages.add(url);
-      }
-    }
-  }
-  if (pages.size > 0) {
-    labels.push(`阅读 ${pages.size} 个网页`);
-  }
-  return labels.join(' · ') || `网页工具 · ${calls.length} 个步骤`;
-}
+import {presentServerToolProcess} from './serverToolPresentation';
 
 export function ToolProcessDisclosure({
   calls,
@@ -39,7 +16,7 @@ export function ToolProcessDisclosure({
 }) {
   const [expanded, setExpanded] = useState(false);
   const {colors, spacing, controlSize, iconSize} = useTheme();
-  const label = describeProcess(calls);
+  const label = presentServerToolProcess(calls);
 
   return (
     <View>

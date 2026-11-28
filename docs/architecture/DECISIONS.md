@@ -101,3 +101,16 @@ inset，还包含 rAF 合并、`FlatList` ref、用户滚动判定和 Web `visua
 
 **后果**：`ChatScreen` 只保留页面编排与发送/重试流程；滚动策略可独立测试。hook
 是 UI 内部实现，不引入跨层依赖，也不需要新的全局状态。
+
+## ADR-0009：服务端工具展示派生集中在一个纯函数模块
+
+**背景**：`ToolCallCard` 自己 switch `action.type` 生成标题与说明，
+`ToolProcessDisclosure` 又独立判断 `search`、统计已完成的 `open_page` / `read_link`。
+两处对同一批动作类型的解释可能漂移，且都难以脱离 React 测试。
+
+**决定**：新增 `ui/components/serverToolPresentation.ts`，提供
+`presentServerToolCall` 与 `presentServerToolProcess` 两个纯函数；两个组件只负责
+布局和状态样式。
+
+**后果**：新增服务端工具动作类型时只改展示模块；单测覆盖标题、域名回退、URL 去重
+与未完成页面不计数的规则。

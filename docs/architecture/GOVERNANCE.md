@@ -112,7 +112,7 @@ App.tsx
 | G-04 | Skill 文件读取在 `fileTools` 与 `FilePreviewScreen` 各有一份                      | 统一 `readAppFile`，显式区分 enabled/all         | 中   | 新单测 + 预览手测                     | done                                     |
 | G-05 | `features` 直接依赖 `react-native`，`utils` 直接依赖 Expo                         | 平台能力下沉 `adapters/platform`，加境界规则     | 中   | arch fixture + 全量测试               | done                                     |
 | G-06 | `ChatScreen` 同时承担滚动、键盘、抽屉、发送编排                                   | 抽出滚动/键盘 hook 与用户气泡组件                | 中   | typecheck + 手测滚动/键盘             | done                                     |
-| G-07 | 服务端工具文案与动作解释在 `ToolCallCard` / `ToolProcessDisclosure` 重复          | 单一展示派生模块                                 | 低   | 新单测                                | todo                                     |
+| G-07 | 服务端工具文案与动作解释在 `ToolCallCard` / `ToolProcessDisclosure` 重复          | 单一展示派生模块                                 | 低   | 新单测                                | done                                     |
 | G-08 | `summarizeToolArguments`、`formatMessageTime` 仅测试使用                          | 删除死代码或接入真实调用方                       | 低   | knip + 全量测试                       | todo                                     |
 | G-09 | `fileTools` / `FileToolSnapshot` 命名与实际内容（含 `ask_user`、`code_exec`）不符 | 统一为客户端工具命名                             | 中   | 全量测试 + typecheck                  | todo                                     |
 | G-10 | 架构门禁保留未实现的 `runtime` 规则                                               | 删除规划规则；引入时再加                         | 低   | arch + 门禁自测                       | done                                     |
