@@ -118,9 +118,9 @@ async function buildGraph() {
 const RULES = [
   {
     from: /^src\/domain\//,
-    to: /^(?!src\/domain\/)/,
+    to: /^(?!src\/domain\/)(?!zod$)/,
     reason:
-      'domain 必须是纯模型层，只能依赖自身（禁止 React / RN / zustand / 存储实现）',
+      'domain 只能是纯模型层：只依赖自身与 zod schema（禁止 React / RN / 存储实现）',
   },
   {
     from: /^src\/config\//,

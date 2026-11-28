@@ -26,16 +26,16 @@ oxlint 不做跨文件依赖分析，knip 只管未使用代码，两者都发�
 倒置。`pnpm arch` 通过 `scripts/check-architecture.mjs` 检查以下规则。脚本复用项目的
 TypeScript 解析器，读取静态导入、重导出、类型依赖和字面量 `import()`。
 
-| 规则                        | 约束                                                             |
-| --------------------------- | ---------------------------------------------------------------- |
-| `domain`                    | 只能依赖自身；禁止 react / react-native / zustand / AsyncStorage |
-| `config`                    | 不得依赖 `src/` 内的模块                                         |
-| `ui/primitives`、`ui/theme` | 不得依赖 features / adapters / app（主题由调用方注入）           |
-| `ui`                        | 不得依赖 `app`（路由契约由 `ui/navigation` 拥有）                |
-| `features`                  | 不得依赖 ui，也不得直接依赖 React Native / Expo 平台包           |
-| `utils`                     | 只放纯函数；不得依赖 features / adapters / ui / app 或平台包     |
-| `adapters`                  | 不得依赖 features / ui / app                                     |
-| 全局                        | 任何模块级别的循环依赖                                           |
+| 规则                        | 约束                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `domain`                    | 只能依赖自身与 `zod` schema；禁止 react / react-native / zustand / AsyncStorage |
+| `config`                    | 不得依赖 `src/` 内的模块                                                        |
+| `ui/primitives`、`ui/theme` | 不得依赖 features / adapters / app（主题由调用方注入）                          |
+| `ui`                        | 不得依赖 `app`（路由契约由 `ui/navigation` 拥有）                               |
+| `features`                  | 不得依赖 ui，也不得直接依赖 React Native / Expo 平台包                          |
+| `utils`                     | 只放纯函数；不得依赖 features / adapters / ui / app 或平台包                    |
+| `adapters`                  | 不得依赖 features / ui / app                                                    |
+| 全局                        | 任何模块级别的循环依赖                                                          |
 
 规则写在脚本里，CI 与 `pnpm check` 都会执行。出现分层违规时，输出包含引用位置和原因。
 
@@ -55,6 +55,8 @@ AssistantMessage {
 ```
 
 `segments` 保留模型输出的真实顺序：思考 → 搜索 → 思考 → 阅读网页 → 回答。UI 把相邻 thinking 合并为可折叠块，tool 渲染为卡片，text 渲染为 Markdown。
+
+消息模型和持久化契约在 [`src/domain/chat/schema.ts`](../src/domain/chat/schema.ts) 用 Zod 定义，TypeScript 类型由 `z.infer` 派生；冷启动读取用同一 schema 校验，单条损坏记录会被丢弃。
 
 `ask_user` 调用会暂停运行，等待用户选择或自定义回答后再继续；自定义输入框聚焦期间暂停计时，失焦、离开页面或应用退到后台时恢复剩余计时，60 秒内未确认则按“未选择”返回并继续运行。
 

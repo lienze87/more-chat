@@ -4,60 +4,8 @@ import type {
   ClientToolCall,
   Conversation,
 } from '../../../domain/chat/types';
+import {conversationSchema} from '../../../domain/chat/schema';
 import {readJson, writeJson} from '../storage/jsonStorage';
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
-
-function isMessage(value: unknown): value is ChatMessage {
-  if (
-    !isRecord(value) ||
-    typeof value.id !== 'string' ||
-    typeof value.content !== 'string' ||
-    typeof value.createdAt !== 'number' ||
-    typeof value.status !== 'string'
-  ) {
-    return false;
-  }
-  if (value.role === 'user') {
-    return (
-      typeof value.envInfo === 'string' && typeof value.reminder === 'string'
-    );
-  }
-  return (
-    value.role === 'assistant' &&
-    typeof value.reasoning === 'string' &&
-    typeof value.activeStep === 'number' &&
-    Array.isArray(value.annotations) &&
-    Array.isArray(value.segments) &&
-    value.segments.every(
-      segment =>
-        isRecord(segment) &&
-        (segment.kind !== 'thinking' ||
-          typeof segment.startedAt === 'number') &&
-        (segment.kind !== 'client_tool' || isRecord(segment.call)),
-    ) &&
-    Array.isArray(value.serverToolCalls) &&
-    Array.isArray(value.clientToolCalls) &&
-    value.clientToolCalls.every(isRecord) &&
-    (value.toolRounds === undefined || Array.isArray(value.toolRounds))
-  );
-}
-
-function isConversation(value: unknown): value is Conversation {
-  return (
-    isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.title === 'string' &&
-    (value.titleSource === 'auto' ||
-      value.titleSource === 'user' ||
-      value.titleSource === 'fallback') &&
-    typeof value.createdAt === 'number' &&
-    typeof value.updatedAt === 'number' &&
-    Array.isArray(value.messages) &&
-    value.messages.every(isMessage)
-  );
-}
 
 function restoreToolCall(call: ClientToolCall): ClientToolCall {
   return call.status === 'running'
@@ -95,7 +43,15 @@ function restoreMessage(message: ChatMessage, updatedAt: number): ChatMessage {
 export const conversationRepository = {
   async load(): Promise<Conversation[]> {
     const raw = await readJson(STORAGE_KEYS.conversations);
-    const conversations = Array.isArray(raw) ? raw.filter(isConversation) : [];
+    const conversations: Conversation[] = [];
+    if (Array.isArray(raw)) {
+      for (const value of raw) {
+        const parsed = conversationSchema.safeParse(value);
+        if (parsed.success) {
+          conversations.push(parsed.data);
+        }
+      }
+    }
     for (const conversation of conversations) {
       conversation.messages = conversation.messages.map(message =>
         restoreMessage(message, conversation.updatedAt),

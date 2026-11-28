@@ -52,7 +52,7 @@ it('treats domain as a leaf, including platform packages', () => {
 
   expect(result.status).toBe(1);
   expect(result.stderr).toContain('发现 1 处层次倒置');
-  expect(result.stderr).toContain('domain 必须是纯模型层');
+  expect(result.stderr).toContain('domain 只能是纯模型层');
 });
 
 it('keeps ui independent from the app assembly layer', () => {

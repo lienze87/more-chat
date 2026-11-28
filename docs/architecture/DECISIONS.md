@@ -183,3 +183,19 @@ JSON。
 **后果**：状态更新与持久化规则只在一处；流式回调落到已删除的消息上不会写盘。
 `deleteConversation` / `deleteAllConversations` 仍直接 set，因为它们改变的是列表
 本身而不是单个会话。
+
+## ADR-0015：对话 schema 同时定义类型与运行时契约
+
+**背景**：`domain/chat/types.ts` 手写了一套对话类型，`conversationRepository` 又
+手写 `isMessage` / `isConversation` 做结构校验。两套定义会随字段变化漂移；冷启动
+解析只能信任其中一套，旧字段兼容逻辑也没有明确边界。
+
+**决定**：新增 `domain/chat/schema.ts`，用 Zod 定义消息、工具、引用、会话和用量
+结构；TypeScript 类型统一由 `z.infer` 派生，`types.ts` 只做稳定入口重导出。
+`conversationRepository.load` 逐条执行 `conversationSchema.safeParse`，无效记录
+直接丢弃，不再兼容旧结构。`domain` 分层规则显式允许 `zod`，其余平台/状态依赖
+仍然禁止。
+
+**后果**：新增字段只改 schema，类型和冷启动校验同步更新；不再需要维护手写
+`isMessage`。旧数据如果缺少当前必需字段会被丢弃，这是明确的产品选择而不是兼容
+路径。Zod 已在客户端依赖中（工具参数校验），不会额外引入运行时。

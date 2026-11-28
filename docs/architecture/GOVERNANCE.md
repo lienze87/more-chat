@@ -39,7 +39,7 @@ App.tsx
 - `features` 不得依赖 `ui` / `app`，也不得直接依赖 React Native 或 Expo 平台包；
   平台差异通过 `adapters/platform` 暴露。
 - `adapters` 不得依赖 `features` / `ui` / `app`；`adapters/platform` 可以被上层使用。
-- `domain` 只依赖自身；`config` 不依赖 `src/`；`utils` 只依赖 `config` / `domain` 和纯 JS 库。
+- `domain` 只依赖自身与 `zod` schema；`config` 不依赖 `src/`；`utils` 只依赖 `config` / `domain` 和纯 JS 库。
 - 任何模块级循环依赖都不允许。
 
 这些规则由 `pnpm arch` 执行；规则表是唯一权威，文档只做解释。
@@ -94,7 +94,7 @@ App.tsx
 | 应用内路径规则               | `src/features/extensions/filePaths.ts`                       | 文件工具、预览、Markdown 链接          |
 | 应用内文件读取               | `src/features/extensions/appFiles.ts`                        | 文件工具、文件预览                     |
 | 客户端工具契约（Zod schema） | `src/features/extensions/toolDefinitions.ts`                 | 工具声明、参数校验、脚本白名单         |
-| 持久化结构校验               | `src/adapters/data/repositories/conversationRepository.ts`   | 冷启动恢复                             |
+| 持久化结构校验               | `src/domain/chat/schema.ts` + `conversationRepository`       | 冷启动恢复                             |
 | Skill 持久化契约             | `src/adapters/data/repositories/skillRepository.ts`          | Skill 状态、文件工具                   |
 | 设计令牌                     | `src/ui/theme/tokens.ts`                                     | 全部 UI                                |
 | 架构边界                     | `scripts/check-architecture.mjs`                             | `pnpm arch`、CI                        |
@@ -116,6 +116,9 @@ App.tsx
 | G-07 | 服务端工具文案与动作解释在 `ToolCallCard` / `ToolProcessDisclosure` 重复          | 单一展示派生模块                                 | 低   | 新单测                                | done                                     |
 | G-08 | `summarizeToolArguments`、`formatMessageTime` 仅测试使用                          | 删除死代码或接入真实调用方                       | 低   | knip + 全量测试                       | done                                     |
 | G-09 | `fileTools` / `FileToolSnapshot` 命名与实际内容（含 `ask_user`、`code_exec`）不符 | 统一为客户端工具命名                             | 中   | 全量测试 + typecheck                  | done                                     |
+| G-10 | 架构门禁保留未实现的 `runtime` 规则                                               | 删除规划规则；引入时再加                         | 低   | arch + 门禁自测                       | done                                     |
+| G-11 | 持久化结构校验与 `domain` 类型是两套手写定义                                      | 用 Zod schema 派生类型并接入冷启动校验           | 高   | schema/repository 单测 + 全量测试     | done                                     |
+| G-12 | 日志只有零散 `console.warn`，无统一观测出口                                       | 评估是否引入最小 logger；客户端暂无远端采集需求  | 低   | 设计确认                              | deferred（无明确产品需求，避免新增抽象） |
 | G-13 | 引用来源编号在 `extractCitationSources` 与 `buildCitedMarkdown` 各算一次          | 角标编号与来源列表共用同一排序/去重结果          | 低   | citations 单测                        | done                                     |
 | G-14 | `chatClient` 硬编码默认 Base URL，与设置默认值重复                                | 复用 `DEFAULT_BASE_URL`，补 URL 构造单测         | 低   | chatClient 单测                       | done                                     |
 | G-15 | `skillsStore` 直接操作 fileStorage，JSON.parse 无校验                             | 引入 skillRepository，校验并跳过损坏记录         | 中   | repository/store 单测                 | done                                     |
@@ -128,9 +131,6 @@ App.tsx
 | G-22 | `domain` 两条分层规则重复命中同一平台导入，报错重复且难读                         | 合并为单条叶子规则并补 fixture                   | 低   | 门禁自测 + arch                       | done                                     |
 | G-23 | 外链打开在 Markdown、引用列表、工具卡片、设置页各写一份 `Linking.openURL().catch` | 收敛到 adapters/platform/linking                 | 低   | typecheck + web export                | done                                     |
 | G-24 | `TextField` 把 Web 按压样式套在输入框上，禁用文本选中且显示 pointer 光标          | 输入框不再套 `webPointer`                        | 低   | typecheck + web export                | done                                     |
-| G-10 | 架构门禁保留未实现的 `runtime` 规则                                               | 删除规划规则；引入时再加                         | 低   | arch + 门禁自测                       | done                                     |
-| G-11 | 持久化结构校验与 `domain` 类型是两套手写定义                                      | 评估用同一 schema 派生，或明确校验层职责         | 高   | 兼容性样本 + 全量测试                 | deferred（需评估旧数据兼容策略）         |
-| G-12 | 日志只有零散 `console.warn`，无统一观测出口                                       | 评估是否引入最小 logger；客户端暂无远端采集需求  | 低   | 设计确认                              | deferred（无明确产品需求，避免新增抽象） |
 
 ## 每轮闭环
 
@@ -156,17 +156,17 @@ App.tsx
 
 ## 当前进展
 
-治理分支 `arch/entropy` 已完成 22 项任务（G-01 至 G-24 中除 G-11、G-12 外的全部
-条目），保留两项待确认事项。当前状态：
+治理分支 `arch/entropy` 已完成 23 项任务（G-01 至 G-24 中除 G-12 外的全部条目），
+保留 G-12 一项待确认事项。当前状态：
 
 | 检查                | 当前结果                                     |
 | ------------------- | -------------------------------------------- |
-| `pnpm arch`         | 109 个模块，394 条内部依赖边，0 循环，0 倒置 |
+| `pnpm arch`         | 110 个模块，396 条内部依赖边，0 循环，0 倒置 |
 | `pnpm typecheck`    | 通过                                         |
 | `pnpm lint`         | 0 warning / 0 error                          |
 | `pnpm knip`         | 通过                                         |
 | `pnpm format:check` | 通过                                         |
-| Jest                | 31 个 suite / 248 个用例通过                 |
+| Jest                | 33 个 suite / 257 个用例通过                 |
 | `pnpm check`        | 通过（格式、lint、架构、类型、knip、测试）   |
 | Expo Web 导出       | 通过                                         |
 | Expo Android 导出   | 通过                                         |
