@@ -23,6 +23,19 @@ jest.mock('../src/adapters/files/fileStorage', () => {
       remove: async (path: string) => {
         files.delete(path);
       },
+      rename: async (from: string, to: string, overwrite: boolean) => {
+        const content = files.get(from);
+        if (content === undefined) throw new Error('文件不存在。');
+        if (!overwrite && files.has(to)) throw new Error('文件已存在。');
+        files.set(to, content);
+        files.delete(from);
+      },
+      stat: async (path: string) => {
+        const content = files.get(path);
+        return content === undefined
+          ? undefined
+          : {size: new TextEncoder().encode(content).length};
+      },
     },
   };
 });

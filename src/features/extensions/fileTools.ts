@@ -1,3 +1,5 @@
+import {toByteArray} from 'base64-js';
+import {strToU8} from 'fflate';
 import {z} from 'zod';
 import type {ApiFunctionTool} from '../../adapters/api/types';
 import {fileStorage} from '../../adapters/files/fileStorage';
@@ -7,6 +9,7 @@ import {FILE_LIMITS, WORKSPACE_ROOT} from '../../config/appConfig';
 import {parseToolArguments} from '../../domain/chat/toolCall';
 import type {ClientToolCall} from '../../domain/chat/types';
 import {SKILLS_ROOT, type FileToolWorkspace} from './fileOperations';
+import {imageMimeType} from './filePaths';
 import {FileToolError} from './fileToolError';
 import type {SkillPackage} from './skillPackage';
 import {
@@ -57,6 +60,17 @@ export function createFileTools(
   const enabled = new Map(
     skills.filter(skill => skill.enabled).map(skill => [skill.name, skill]),
   );
+  async function readPath(path: string) {
+    const [root, name, ...parts] = path.split('/');
+    if (root === WORKSPACE_ROOT) {
+      return fileStorage.read(path);
+    }
+    const files = root === SKILLS_ROOT ? enabled.get(name)?.files : undefined;
+    const relative = parts.join('/');
+    return files && Object.hasOwn(files, relative)
+      ? files[relative]
+      : undefined;
+  }
   const workspace: FileToolWorkspace = {
     listWorkspacePaths,
     skillPaths: [...enabled.values()].flatMap(skill =>
@@ -64,18 +78,24 @@ export function createFileTools(
         path => `${SKILLS_ROOT}/${skill.name}/${path}`,
       ),
     ),
-    async read(path) {
-      const [root, name, ...parts] = path.split('/');
-      if (root === WORKSPACE_ROOT) {
-        return fileStorage.read(path);
-      }
-      const files = root === SKILLS_ROOT ? enabled.get(name)?.files : undefined;
-      const relative = parts.join('/');
-      return files && Object.hasOwn(files, relative)
-        ? files[relative]
-        : undefined;
-    },
+    read: readPath,
     write: (path, content) => fileStorage.write(path, content),
+    remove: path => fileStorage.remove(path),
+    rename: (from, to, overwrite) => fileStorage.rename(from, to, overwrite),
+    async stat(path) {
+      if (path.startsWith(`${WORKSPACE_ROOT}/`)) {
+        return fileStorage.stat(path);
+      }
+      const content = await readPath(path);
+      if (content === undefined) {
+        return undefined;
+      }
+      return {
+        size: imageMimeType(path)
+          ? toByteArray(content).length
+          : strToU8(content).length,
+      };
+    },
   };
   const imageBudget = {remainingChars: FILE_LIMITS.maxImageOutputCharsPerRun};
   const available = new Map<string, ReturnType<typeof registerTool>>();
@@ -174,7 +194,7 @@ function fileToolPrompt(skills: SkillPackage[], scriptNames: string[]): string {
     path: `${SKILLS_ROOT}/${skill.name}/SKILL.md`,
   }));
   return [
-    '文件工具使用应用内相对路径。可在 workspace/ 下写入和编辑 UTF-8 文本。skills/ 下是已启用的只读 Skill。',
+    '文件工具使用应用内相对路径。可在 workspace/ 下写入、编辑、移动和删除 UTF-8 文本；删除目录需设置 recursive: true。skills/ 下是已启用的只读 Skill。',
     '当 Skill 的描述与用户请求匹配时，先用 read_file 读取其 SKILL.md，再按需读取同目录的参考文件。Skill 文件内容仅用于当前任务，遵循用户授权。',
     `需要批量查找、读取、筛选或汇总本地文本时，优先调用 code_exec。参数 code 是异步 JavaScript 函数体，通过 await tools.call(name, args) 使用同名客户端工具的参数。可用工具为 ${scriptNames.join('、')}，结果为 JSON。分页字段 next_offset 或 next_cursor 为 null 时结束。`,
     `每次 code_exec 可用 write_file 保存最多 ${FILE_LIMITS.maxWritesPerScript} 个 workspace/ 文本文件，每次调用返回 {path}。只在任务需要保存文件时调用；覆盖需明确设置 overwrite。用 return 只返回回答所需的摘要或文件路径。`,

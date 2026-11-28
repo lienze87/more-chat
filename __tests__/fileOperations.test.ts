@@ -1,3 +1,4 @@
+import {strToU8} from 'fflate';
 import {
   editTextFile,
   readImageFile,
@@ -16,6 +17,22 @@ function createWorkspace(entries: Record<string, string> = {}) {
     write: jest.fn(async (path: string, content: string) => {
       files.set(path, content);
     }),
+    remove: async (path: string) => {
+      files.delete(path);
+    },
+    rename: async (from: string, to: string, overwrite: boolean) => {
+      const content = files.get(from);
+      if (content === undefined) throw new Error('文件不存在。');
+      if (!overwrite && files.has(to)) throw new Error('文件已存在。');
+      files.set(to, content);
+      files.delete(from);
+    },
+    stat: async (path: string) => {
+      const content = files.get(path);
+      return content === undefined
+        ? undefined
+        : {size: strToU8(content).length};
+    },
   } satisfies FileToolWorkspace;
   return {files, workspace};
 }

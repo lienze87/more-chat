@@ -11,11 +11,19 @@ import {FileToolError} from './fileToolError';
 
 export const SKILLS_ROOT = 'skills';
 
+export interface FileStat {
+  size: number;
+  mtime?: number;
+}
+
 export interface FileToolWorkspace {
   listWorkspacePaths: () => Promise<string[]>;
   skillPaths: readonly string[];
   read: (path: string) => Promise<string | undefined>;
   write: (path: string, content: string) => Promise<void>;
+  remove: (path: string) => Promise<void>;
+  rename: (from: string, to: string, overwrite: boolean) => Promise<void>;
+  stat?: (path: string) => Promise<FileStat | undefined>;
 }
 
 interface PathPattern {
@@ -42,6 +50,17 @@ function workspaceTextPath(path: string): string {
   const target = textPath(path);
   if (!target.startsWith(`${WORKSPACE}/`)) {
     throw new FileToolError('只能写入 workspace/ 下的文件。');
+  }
+  return target;
+}
+
+function workspaceTarget(path: string, action: string): string {
+  const target = normalizePath(path.replace(/\/+$/, '') || path);
+  if (target === WORKSPACE) {
+    throw new FileToolError('不能操作工作区根目录。');
+  }
+  if (!target.startsWith(`${WORKSPACE}/`)) {
+    throw new FileToolError(`只能${action} workspace/ 下的文件。`);
   }
   return target;
 }
@@ -122,11 +141,62 @@ export async function listDirectory(
     throw new FileToolError(`目录不存在：${directory}`);
   }
   const entries = [...children].sort(([a], [b]) => a.localeCompare(b));
+  if (offset > entries.length) {
+    throw new FileToolError(
+      `offset 超出目录项，请使用 next_offset：${directory}`,
+    );
+  }
   const end = offset + FILE_LIMITS.directoryPageItems;
+  const page = await Promise.all(
+    entries.slice(offset, end).map(async ([name, type]) => {
+      if (type === 'directory') {
+        return {name, type};
+      }
+      const entry: {
+        name: string;
+        type: 'file';
+        size?: number;
+        mtime?: string;
+      } = {name, type};
+      const target = directory === '.' ? name : `${directory}/${name}`;
+      const metadata = await entryMetadata(workspace, target);
+      if (metadata) {
+        entry.size = metadata.size;
+        if (metadata.mtime !== undefined) {
+          entry.mtime = metadata.mtime;
+        }
+      }
+      return entry;
+    }),
+  );
   return {
-    entries: entries.slice(offset, end).map(([name, type]) => ({name, type})),
+    entries: page,
+    total: entries.length,
     next_offset: end < entries.length ? end : null,
   };
+}
+
+async function entryMetadata(
+  workspace: FileToolWorkspace,
+  path: string,
+): Promise<{size: number; mtime?: string} | undefined> {
+  if (!workspace.stat) {
+    return undefined;
+  }
+  try {
+    const stat = await workspace.stat(path);
+    if (!stat) {
+      return undefined;
+    }
+    return {
+      size: stat.size,
+      ...(stat.mtime !== undefined && Number.isFinite(stat.mtime)
+        ? {mtime: new Date(stat.mtime).toISOString()}
+        : {}),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 async function matchingPaths(
@@ -160,8 +230,90 @@ export async function findFiles(
   };
 }
 
+export async function deletePath(
+  {path, recursive}: {path: string; recursive: boolean},
+  workspace: FileToolWorkspace,
+  signal: AbortSignal,
+) {
+  const target = workspaceTarget(path, '删除');
+  return runMutation(signal, async () => {
+    const paths = await listWorkspace(workspace);
+    checkCancellation(signal);
+    const affected = paths
+      .filter(file => file === target || file.startsWith(`${target}/`))
+      .sort();
+    if (!affected.length) {
+      throw new FileToolError(`文件或目录不存在：${target}`);
+    }
+    if (affected.some(file => file !== target) && !recursive) {
+      throw new FileToolError(
+        `目标是目录，删除目录需设置 recursive: true：${target}`,
+      );
+    }
+    const deleted: string[] = [];
+    for (const file of affected) {
+      checkCancellation(signal);
+      try {
+        await workspace.remove(file);
+      } catch (cause) {
+        throw new FileToolError(
+          `删除文件失败：${file}。已删除：${deleted.length ? deleted.join('、') : '无'}`,
+          {cause},
+        );
+      }
+      deleted.push(file);
+    }
+    return {deleted, count: deleted.length};
+  });
+}
+
+export async function movePath(
+  {from, to, overwrite}: {from: string; to: string; overwrite: boolean},
+  workspace: FileToolWorkspace,
+  signal: AbortSignal,
+) {
+  const source = workspaceTarget(from, '移动');
+  const target = workspaceTarget(to, '移动到');
+  if (source === target) {
+    throw new FileToolError('源路径和目标路径相同。');
+  }
+  return runMutation(signal, async () => {
+    const paths = await listWorkspace(workspace);
+    checkCancellation(signal);
+    if (!paths.includes(source)) {
+      if (paths.some(file => file.startsWith(`${source}/`))) {
+        throw new FileToolError(`源路径是目录，暂不支持移动目录：${source}`);
+      }
+      throw new FileToolError(`源文件不存在：${source}`);
+    }
+    if (
+      paths.some(
+        file => file.startsWith(`${target}/`) || target.startsWith(`${file}/`),
+      )
+    ) {
+      throw new FileToolError(`目标与已有文件或目录冲突：${target}`);
+    }
+    if (paths.includes(target) && !overwrite) {
+      throw new FileToolError(
+        `目标文件已存在，请设置 overwrite: true：${target}`,
+      );
+    }
+    try {
+      await workspace.rename(source, target, overwrite);
+    } catch (cause) {
+      throw new FileToolError(`移动文件失败：${source} → ${target}`, {cause});
+    }
+    checkCancellation(signal);
+    return {from: source, to: target};
+  });
+}
+
 export async function searchText(
-  args: PathPattern & {query: string; cursor: SearchCursor},
+  args: PathPattern & {
+    query: string;
+    cursor: SearchCursor;
+    case_sensitive?: boolean;
+  },
   workspace: FileToolWorkspace,
   signal: AbortSignal,
 ) {

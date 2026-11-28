@@ -6,9 +6,11 @@ import {
   WRITE_TOOL_INPUT_LIMIT,
 } from '../../../config/appConfig';
 import {
+  deletePath,
   editTextFile,
   findFiles,
   listDirectory,
+  movePath,
   readImageFile,
   readTextFile,
   searchText,
@@ -69,7 +71,7 @@ async function executeListDirectory(
 }
 
 const listDirectoryDefinition = {
-  description: `列出目录的直接子项。默认列出根目录，每页最多 ${FILE_LIMITS.directoryPageItems} 项。`,
+  description: `列出目录的直接子项，返回 {entries, total, next_offset}。文件项含 size（字节）和 mtime（ISO 时间，Web 端无 mtime）。每页最多 ${FILE_LIMITS.directoryPageItems} 项。`,
   parameters: listDirectorySchema,
   execute: executeListDirectory,
   programmatic: true,
@@ -90,6 +92,47 @@ const findFilesDefinition = {
   execute: executeFindFiles,
   programmatic: true,
 } satisfies FileToolDefinition<typeof findFilesSchema>;
+
+const deletePathSchema = z.strictObject({
+  path: pathParam,
+  recursive: z.boolean().default(false),
+});
+
+async function executeDeletePath(
+  args: z.output<typeof deletePathSchema>,
+  {workspace, signal}: FileToolContext,
+): Promise<FileToolResult> {
+  return {text: JSON.stringify(await deletePath(args, workspace, signal))};
+}
+
+const deletePathDefinition = {
+  description:
+    '删除 workspace/ 下的文件或目录，返回 {deleted, count}。删除目录需设置 recursive: true；skills/ 只读。',
+  parameters: deletePathSchema,
+  execute: executeDeletePath,
+  programmatic: true,
+} satisfies FileToolDefinition<typeof deletePathSchema>;
+
+const movePathSchema = z.strictObject({
+  from: pathParam,
+  to: pathParam,
+  overwrite: z.boolean().default(false),
+});
+
+async function executeMovePath(
+  args: z.output<typeof movePathSchema>,
+  {workspace, signal}: FileToolContext,
+): Promise<FileToolResult> {
+  return {text: JSON.stringify(await movePath(args, workspace, signal))};
+}
+
+const movePathDefinition = {
+  description:
+    '移动或重命名 workspace/ 下的文本文件，返回 {from, to}。目标已存在需设置 overwrite；skills/ 只读。',
+  parameters: movePathSchema,
+  execute: executeMovePath,
+  programmatic: true,
+} satisfies FileToolDefinition<typeof movePathSchema>;
 
 const cursorError = '请使用上一次搜索返回的 next_cursor。';
 const queryError = `必须是 1 到 ${FILE_SEARCH_LIMITS.maxQueryLength} 字符的单行文本。`;
@@ -249,5 +292,7 @@ export const fileToolDefinitions = {
   write_file: writeFileDefinition,
   edit_file: editFileDefinition,
   read_image: readImageDefinition,
+  delete_path: deletePathDefinition,
+  move_path: movePathDefinition,
   code_exec: codeExecDefinition,
 } satisfies Record<string, FileToolDefinition>;

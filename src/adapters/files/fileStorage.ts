@@ -56,4 +56,25 @@ export const fileStorage = {
       file.delete();
     }
   },
+
+  async rename(from: string, to: string, overwrite: boolean): Promise<void> {
+    const source = fileFor(from);
+    if (!source.exists) {
+      throw new Error(`文件不存在：${from}`);
+    }
+    await source.move(fileFor(to), {overwrite});
+  },
+
+  async stat(key: string): Promise<{size: number; mtime?: number} | undefined> {
+    const file = fileFor(key);
+    if (!file.exists) {
+      return undefined;
+    }
+    try {
+      const info = file.info();
+      return {size: info.size ?? 0, mtime: info.modificationTime};
+    } catch {
+      return undefined;
+    }
+  },
 };
