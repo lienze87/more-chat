@@ -4,7 +4,6 @@ import type {ChunkDelta, ChatCompletionChunk} from '../src/adapters/api/types';
 import {
   parseToolArguments,
   summarizeParsedArguments,
-  summarizeToolArguments,
 } from '../src/domain/chat/toolCall';
 import type {AssistantMessage} from '../src/domain/chat/types';
 import {conversationRepository} from '../src/adapters/data/repositories/conversationRepository';
@@ -120,20 +119,9 @@ describe('client tool calls', () => {
     );
 
     expect(parseToolArguments(message.clientToolCalls[0])).toBeNull();
-    expect(summarizeToolArguments(message.clientToolCalls[0])).toBe('{"city":');
   });
 
-  it('summarizes arguments for the tool card', () => {
-    const call = {
-      id: 'call_1',
-      name: 'get_weather',
-      argumentsText: '{"city":"上海","unit":"c"}',
-      status: 'completed' as const,
-      result: '晴',
-    };
-
-    expect(summarizeToolArguments(call)).toBe('city=上海 · unit=c');
-    expect(summarizeToolArguments({...call, argumentsText: ''})).toBe('');
+  it('summarizes parsed arguments for the tool card', () => {
     expect(summarizeParsedArguments({city: '上海', unit: 'c'})).toBe(
       'city=上海 · unit=c',
     );
