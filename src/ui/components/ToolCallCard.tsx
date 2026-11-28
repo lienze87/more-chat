@@ -1,6 +1,7 @@
 import React from 'react';
-import {Linking, Pressable, StyleSheet, View} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 import type {ServerToolCall, ToolSource} from '../../domain/chat/types';
+import {openExternalUrl} from '../../adapters/platform/linking';
 import {hostOf} from '../../utils/url';
 import {presentServerToolCall} from './serverToolPresentation';
 import {useTheme} from '../theme/ThemeProvider';
@@ -70,7 +71,7 @@ export function ToolCallCard({call}: ToolCallCardProps) {
               key={source.url}
               accessibilityRole="link"
               accessibilityLabel={source.title || source.url}
-              onPress={() => Linking.openURL(source.url).catch(() => undefined)}
+              onPress={() => openExternalUrl(source.url)}
               style={({pressed}) => [
                 styles.sourceRow,
                 webPointer,

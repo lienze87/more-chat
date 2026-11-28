@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {Linking, Platform, ScrollView, StyleSheet, View} from 'react-native';
+import {Platform, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/types';
@@ -16,6 +16,7 @@ import {
   useSettingsStore,
 } from '../../features/settings/settingsStore';
 import {APP_VERSION} from '../../config/appConfig';
+import {openExternalUrl} from '../../adapters/platform/linking';
 import {showAlert} from '../primitives/dialogStore';
 import {
   ActionRow,
@@ -36,9 +37,9 @@ import {useTheme} from '../theme/ThemeProvider';
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 const openDocs = () => {
-  Linking.openURL(
+  openExternalUrl(
     'https://api-docs.deepseek.com/zh-cn/guides/build_a_chatbot/',
-  ).catch(() => undefined);
+  );
 };
 
 /** 设置页：接口、对话能力、用户信息、提示词、外观、数据、关于。 */
