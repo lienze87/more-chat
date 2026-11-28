@@ -28,6 +28,12 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ANDROID_DIR = path.join(ROOT, 'android');
 const OUTPUT_DIR = path.join(ROOT, 'build', 'android');
 const PACKAGE_JSON = path.join(ROOT, 'package.json');
+const GRADLE_PROPERTIES = path.join(ANDROID_DIR, 'gradle.properties');
+const SDK_CONFIG_PLUGIN = path.join(
+  ROOT,
+  'plugins',
+  'withAndroidSdkVersions.js',
+);
 const IS_WINDOWS = process.platform === 'win32';
 
 /** 版本号唯一来源：package.json（app.json 不再声明 version）。 */
@@ -74,16 +80,55 @@ function readNativeVersionName() {
   return match?.[1] ?? null;
 }
 
+/** 生成工程里的 Gradle 属性，形如 key=value。 */
+function readGradleProperties() {
+  if (!existsSync(GRADLE_PROPERTIES)) {
+    return new Map();
+  }
+  return new Map(
+    readFileSync(GRADLE_PROPERTIES, 'utf8')
+      .split(/\r?\n/)
+      .map(line => /^([^#=\s][^=]*)=(.*)$/.exec(line))
+      .filter(Boolean)
+      .map(match => [match[1].trim(), match[2].trim()]),
+  );
+}
+
 /**
- * 原生工程是 prebuild 产物（已 gitignore）：缺失、版本号漂移或显式要求时
- * 重新生成，保证 APK 里的 versionName 与 package.json 一致。
+ * 配置插件写入的 Gradle 属性只在新生成的工程里生效。属性漂移说明 android/
+ * 还是旧配置的产物，继续打包会沿用过期版本（例如 Kotlin 编译器）。
+ */
+function configPluginPropertiesMatch() {
+  const require = createRequire(import.meta.url);
+  let expected;
+  try {
+    expected = require(SDK_CONFIG_PLUGIN).PROPERTIES ?? {};
+  } catch {
+    // 依赖缺失时让后面的 prebuild 报出明确错误。
+    return true;
+  }
+  const actual = readGradleProperties();
+  return Object.entries(expected).every(
+    ([key, value]) => actual.get(key) === value,
+  );
+}
+
+/**
+ * 原生工程是 prebuild 产物（已 gitignore）：缺失、版本号或配置插件属性漂移、
+ * 显式要求时重新生成，保证 APK 与当前配置一致。
  */
 function ensureNativeProject() {
   const hasWrapper = existsSync(
     path.join(ANDROID_DIR, IS_WINDOWS ? 'gradlew.bat' : 'gradlew'),
   );
   const nativeVersion = hasWrapper ? readNativeVersionName() : null;
-  if (!wantPrebuild && hasWrapper && nativeVersion === APP_VERSION) {
+  const staleConfig = hasWrapper && !configPluginPropertiesMatch();
+  if (
+    !wantPrebuild &&
+    hasWrapper &&
+    nativeVersion === APP_VERSION &&
+    !staleConfig
+  ) {
     return;
   }
   const require = createRequire(import.meta.url);
@@ -95,6 +140,8 @@ function ensureNativeProject() {
   }
   if (nativeVersion !== null && nativeVersion !== APP_VERSION) {
     log(`版本号 ${nativeVersion} -> ${APP_VERSION}，重新生成原生工程`);
+  } else if (staleConfig) {
+    log('Gradle 属性与 config plugin 不一致，重新生成原生工程');
   }
   log('生成原生工程：expo prebuild --platform android');
   run(process.execPath, [

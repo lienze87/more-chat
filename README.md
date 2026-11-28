@@ -33,7 +33,7 @@ pnpm android        # 生成原生工程并安装到设备或模拟器
 pnpm android:build  # 在 build/android/ 生成 release APK
 ```
 
-如需按当前 Expo 配置重新生成已有的 `android/`，运行 `pnpm prebuild:clean --platform android`。
+`android/` 是 prebuild 生成物。`pnpm android:build` 在目录缺失、版本号或 [配置插件](plugins/withAndroidSdkVersions.js) 写入的 Gradle 属性与当前配置不一致时会先重新生成；需要强制重建时运行 `pnpm prebuild:clean --platform android`。
 
 Release APK 默认使用调试签名，正式发布前需配置发布签名。
 
