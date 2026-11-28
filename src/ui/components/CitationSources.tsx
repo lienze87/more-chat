@@ -1,7 +1,8 @@
 import React from 'react';
-import {Linking, Pressable, StyleSheet, View} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 import type {CitationAnnotation} from '../../domain/chat/types';
 import {extractCitationSources} from '../../domain/chat/citations';
+import {openExternalUrl} from '../../adapters/platform/linking';
 import {hostOf} from '../../utils/url';
 import {useTheme} from '../theme/ThemeProvider';
 import {AppText} from '../primitives/AppText';
@@ -40,7 +41,7 @@ export function CitationSources({annotations}: CitationSourcesProps) {
           key={source.url}
           accessibilityRole="link"
           accessibilityLabel={source.title}
-          onPress={() => Linking.openURL(source.url).catch(() => undefined)}
+          onPress={() => openExternalUrl(source.url)}
           style={({pressed}) => [
             styles.row,
             webPointer,

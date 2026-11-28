@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   BackHandler,
   FlatList,
@@ -7,14 +7,10 @@ import {
   Platform,
   StyleSheet,
   View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import type {RootStackParamList} from '../../app/navigation/types';
-import type {ChatMessage} from '../../domain/chat/types';
-import {CHAT_SCROLL_BOTTOM_TOLERANCE} from '../../config/appConfig';
+import type {RootStackParamList} from '../navigation/types';
 import {
   clearMessages,
   deleteConversation,
@@ -36,12 +32,15 @@ import {ChatComposer} from '../components/ChatComposer';
 import {ConversationDrawer} from '../components/ConversationDrawer';
 import {ChatWelcome} from '../components/ChatWelcome';
 import {Logo} from '../components/Logo';
+import {UserMessageBubble} from '../components/UserMessageBubble';
 import {AppText} from '../primitives/AppText';
 import {Card} from '../primitives/Card';
 import {EmptyState} from '../primitives/EmptyState';
 import {Icon} from '../primitives/Icon';
 import {IconButton} from '../primitives/IconButton';
 import {ContentColumn, PageHeader, Screen} from '../primitives/Screen';
+import {useChatAutoScroll} from '../hooks/useChatAutoScroll';
+import {useKeyboardInset} from '../hooks/useKeyboardInset';
 import {useTheme} from '../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
@@ -61,11 +60,17 @@ export function ChatScreen({navigation}: Props) {
   );
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [input, setInput] = useState('');
-  const [keyboardVisible, setKeyboardVisible] = useState(
-    () => Platform.OS !== 'web' && Keyboard.isVisible(),
-  );
-  const [webKeyboardInset, setWebKeyboardInset] = useState(0);
-  const [following, setFollowing] = useState(true);
+  const {keyboardVisible, webKeyboardInset} = useKeyboardInset();
+  const {
+    listRef,
+    following,
+    scrollToBottom,
+    handleScroll,
+    beginUserScroll,
+    stopUserScroll,
+    resumeFollowing,
+    resetFollowing,
+  } = useChatAutoScroll();
 
   // 选中对话被删除（例如设置页清空全部）时自动回退到最近一段对话。
   const conversation = useChatStore(
@@ -79,56 +84,8 @@ export function ChatScreen({navigation}: Props) {
 
   const apiKey = useSettingsStore(state => state.apiKey);
 
-  const listRef = useRef<FlatList<ChatMessage>>(null);
-  const autoScroll = useRef(true);
-  const lastOffset = useRef(0);
-  const userScrolling = useRef(false);
-  const scrollFrame = useRef<number | null>(null);
-
   const isStreaming = streaming?.conversationId === conversation?.id;
   const messages = conversation?.messages ?? [];
-
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const viewport = window.visualViewport;
-      if (!viewport) {
-        return;
-      }
-      const update = () => {
-        const inputFocused =
-          document.activeElement instanceof HTMLTextAreaElement;
-        setWebKeyboardInset(
-          inputFocused && viewport.scale === 1
-            ? Math.max(
-                0,
-                window.innerHeight - viewport.height - viewport.offsetTop,
-              )
-            : 0,
-        );
-      };
-      const reset = () => setWebKeyboardInset(0);
-      viewport.addEventListener('resize', update);
-      viewport.addEventListener('scroll', update);
-      document.addEventListener('focusout', reset);
-      return () => {
-        viewport.removeEventListener('resize', update);
-        viewport.removeEventListener('scroll', update);
-        document.removeEventListener('focusout', reset);
-      };
-    }
-    const show = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setKeyboardVisible(true),
-    );
-    const hide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardVisible(false),
-    );
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
 
   useEffect(() => {
     if (!drawerVisible) {
@@ -143,74 +100,6 @@ export function ChatScreen({navigation}: Props) {
     );
     return () => subscription.remove();
   }, [drawerVisible]);
-
-  const scrollToBottom = useCallback(() => {
-    if (
-      !autoScroll.current ||
-      userScrolling.current ||
-      scrollFrame.current !== null
-    ) {
-      return;
-    }
-    scrollFrame.current = requestAnimationFrame(() => {
-      scrollFrame.current = null;
-      if (autoScroll.current && !userScrolling.current) {
-        listRef.current?.getNativeScrollRef()?.scrollToEnd({animated: false});
-      }
-    });
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (scrollFrame.current !== null) {
-        cancelAnimationFrame(scrollFrame.current);
-      }
-    },
-    [],
-  );
-
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
-    const distance =
-      contentSize.height - (contentOffset.y + layoutMeasurement.height);
-    const movingUp = contentOffset.y < lastOffset.current;
-    lastOffset.current = contentOffset.y;
-    if (
-      distance <= CHAT_SCROLL_BOTTOM_TOLERANCE &&
-      !autoScroll.current &&
-      !movingUp
-    ) {
-      autoScroll.current = true;
-      setFollowing(true);
-    } else if (
-      distance > CHAT_SCROLL_BOTTOM_TOLERANCE &&
-      movingUp &&
-      autoScroll.current &&
-      (userScrolling.current || Platform.OS === 'web')
-    ) {
-      autoScroll.current = false;
-      setFollowing(false);
-    }
-  };
-
-  const stopUserScroll = () => {
-    userScrolling.current = false;
-    scrollToBottom();
-  };
-
-  const resumeFollowing = useCallback(() => {
-    userScrolling.current = false;
-    autoScroll.current = true;
-    setFollowing(true);
-    scrollToBottom();
-  }, [scrollToBottom]);
-
-  const resetFollowing = useCallback(() => {
-    userScrolling.current = false;
-    autoScroll.current = true;
-    lastOffset.current = 0;
-    setFollowing(true);
-  }, []);
 
   const promptForApiKey = useCallback(() => {
     showAlert('需要 API Key', '请先在设置中填写 DeepSeek API Key。', [
@@ -442,36 +331,15 @@ export function ChatScreen({navigation}: Props) {
               onContentSizeChange={scrollToBottom}
               onLayout={scrollToBottom}
               onScroll={handleScroll}
-              onScrollBeginDrag={() => {
-                userScrolling.current = true;
-              }}
+              onScrollBeginDrag={beginUserScroll}
               onScrollEndDrag={stopUserScroll}
-              onMomentumScrollBegin={() => {
-                userScrolling.current = true;
-              }}
+              onMomentumScrollBegin={beginUserScroll}
               onMomentumScrollEnd={stopUserScroll}
               scrollEventThrottle={16}
               showsVerticalScrollIndicator={false}
               renderItem={({item}) => {
                 if (item.role === 'user') {
-                  return (
-                    <View style={styles.userRow}>
-                      <View
-                        style={[
-                          styles.userBubble,
-                          {
-                            backgroundColor: theme.colors.userBubble,
-                            borderRadius: theme.radius.lg,
-                            borderBottomRightRadius: theme.radius.xs,
-                            paddingHorizontal: theme.spacing.lg,
-                            paddingVertical: theme.spacing.md,
-                          },
-                        ]}
-                      >
-                        <AppText tone="userBubble">{item.content}</AppText>
-                      </View>
-                    </View>
-                  );
+                  return <UserMessageBubble content={item.content} />;
                 }
                 return (
                   <View style={styles.assistantRow}>
@@ -575,13 +443,6 @@ const styles = StyleSheet.create({
   listContentWelcome: {
     flexGrow: 1,
     justifyContent: 'center',
-  },
-  userRow: {
-    alignItems: 'flex-end',
-    marginBottom: 16,
-  },
-  userBubble: {
-    maxWidth: '86%',
   },
   assistantRow: {
     marginBottom: 20,

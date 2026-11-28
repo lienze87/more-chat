@@ -1,5 +1,5 @@
 import React, {memo, useMemo} from 'react';
-import {Linking, ScrollView, Text, View} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import Markdown, {
   MarkdownIt,
   parser,
@@ -9,6 +9,7 @@ import Markdown, {
   type RenderFunction,
   type RenderRules,
 } from 'react-native-markdown-display';
+import {openExternalUrl} from '../../adapters/platform/linking';
 import type {CitationAnnotation} from '../../domain/chat/types';
 import {
   buildCitedMarkdown,
@@ -48,10 +49,6 @@ function assignNodeKeys(nodes: ASTNode[]): ASTNode[] {
   }
   return nodes;
 }
-
-const openUrl = (url: string) => {
-  Linking.openURL(url).catch(() => undefined);
-};
 
 const isExternalHref = (href: string) =>
   /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href);
@@ -157,7 +154,7 @@ const createRules = (
           color: citationColor,
           textDecorationLine: 'underline',
         }}
-        onPress={() => openUrl(href)}
+        onPress={() => openExternalUrl(href)}
       >
         {children}
       </Text>
@@ -169,7 +166,7 @@ const createRules = (
       if (path && onOpenPath) {
         onOpenPath(path);
       } else if (isExternalHref(href)) {
-        openUrl(href);
+        openExternalUrl(href);
       }
       return false;
     }),

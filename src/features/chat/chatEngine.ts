@@ -1,10 +1,10 @@
-import {Platform} from 'react-native';
-import {createId} from '../../utils/ids';
+import {createId} from '../../adapters/platform/ids';
+import {currentPlatform} from '../../adapters/platform/runtimePlatform';
 import {
   buildEnvInfo,
   buildLatestReminder,
-  type RuntimePlatform,
 } from '../../domain/chat/userMetadata';
+import {enabledServerToolCapabilities} from '../../domain/chat/capabilities';
 import {createAssistantMessage} from './streamReducer';
 import type {ChatMessage, Conversation} from '../../domain/chat/types';
 import {
@@ -20,9 +20,9 @@ import {
 } from '../../config/appConfig';
 import {useChatStore} from './chatStore';
 import {useSettingsStore} from '../settings/settingsStore';
-import {createFileTools} from '../extensions/fileTools';
+import {createClientTools} from '../extensions/clientTools';
 import {useSkillsStore} from '../extensions/skillsStore';
-import {DEFAULT_MODEL} from '../../domain/settings/types';
+import {modelSupportsImages, resolveModel} from '../../domain/settings/models';
 import {createChatRunController} from './chatRun';
 
 const chatRun = createChatRunController({
@@ -51,28 +51,18 @@ function findConversation(conversationId: string): Conversation | undefined {
     .conversations.find(conversation => conversation.id === conversationId);
 }
 
-/** React Native 的平台标识映射为 env_info 使用的三种运行形态。 */
-function currentPlatform(): RuntimePlatform {
-  if (Platform.OS === 'web') {
-    return 'web';
-  }
-  if (Platform.OS === 'ios') {
-    return 'ios';
-  }
-  return 'android';
-}
-
 /** 把设置里的工具开关翻译成 env_info 里的能力清单。 */
 function describeCapabilities(settings: {
   webSearch: boolean;
   readUrl: boolean;
 }): string[] {
   return [
-    settings.webSearch ? '联网搜索' : null,
-    settings.readUrl ? '阅读链接' : null,
+    ...enabledServerToolCapabilities(settings).map(
+      capability => capability.label,
+    ),
     '本地文件',
     'JavaScript 执行',
-  ].filter((item): item is string => item !== null);
+  ];
 }
 
 async function runCompletion(params: {
@@ -89,11 +79,11 @@ async function runCompletion(params: {
     return;
   }
 
-  const model = settings.model.trim() || DEFAULT_MODEL;
+  const model = resolveModel(settings.model);
   const skills = useSkillsStore.getState().skills;
-  const fileTools = createFileTools(
+  const clientToolSnapshot = createClientTools(
     skills,
-    model === 'deepseek-flash' || model === 'deepseek-v4-flash-vision-exp',
+    modelSupportsImages(model),
   );
   await chatRun.start({
     conversationId,
@@ -102,10 +92,10 @@ async function runCompletion(params: {
       conversation,
       settings,
       isFirstTurn,
-      clientTools: fileTools.definitions,
-      toolPrompt: fileTools.prompt,
+      clientTools: clientToolSnapshot.definitions,
+      toolPrompt: clientToolSnapshot.prompt,
     }),
-    clientTools: fileTools,
+    clientTools: clientToolSnapshot,
     apiKey,
     baseUrl: settings.baseUrl,
     timeoutMs: NETWORK_TIMEOUT_MS,

@@ -45,35 +45,6 @@ export function formatRelativeTime(
   return `${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
-/**
- * 消息脚注用的时间：当天只显示 HH:mm，跨天补上日期。
- *
- * 用绝对时间而不是相对时间，是因为消息会长期留在列表里，「3 天前」会随着
- * 浏览时间变化，反而看不出是哪条。
- */
-const pad2 = (value: number): string => String(value).padStart(2, '0');
-
-export function formatMessageTime(
-  timestamp: number,
-  now: number = Date.now(),
-): string {
-  const date = new Date(timestamp);
-  const current = new Date(now);
-  const clock = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-  const sameDay =
-    date.getFullYear() === current.getFullYear() &&
-    date.getMonth() === current.getMonth() &&
-    date.getDate() === current.getDate();
-  return sameDay
-    ? clock
-    : `${date.getMonth() + 1}月${date.getDate()}日 ${clock}`;
-}
-
-/** 1234 → "1,234"，让 token 数一眼能读出量级。 */
-export function formatTokenCount(tokens: number): string {
-  return String(Math.round(tokens)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
 /** 思考耗时：不足一分钟只说秒数，超过一分钟补上分钟。 */
 export function formatDuration(durationMs: number): string {
   const totalSeconds = Math.max(1, Math.round(durationMs / 1000));

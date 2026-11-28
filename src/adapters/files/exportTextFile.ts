@@ -2,7 +2,7 @@ import {Platform} from 'react-native';
 import {Directory, File, Paths} from 'expo-file-system';
 import {isAvailableAsync, shareAsync} from 'expo-sharing';
 import {FILE_EXPORT_TIMING} from '../../config/appConfig';
-import {createId} from '../../utils/ids';
+import {createId} from '../platform/ids';
 
 export async function exportTextFile(
   name: string,

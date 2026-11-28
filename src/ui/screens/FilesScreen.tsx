@@ -2,11 +2,9 @@ import React from 'react';
 import {ActivityIndicator, FlatList} from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {
-  listWorkspacePaths,
-  WORKSPACE_ROOT,
-} from '../../adapters/files/workspaceFiles';
-import type {RootStackParamList} from '../../app/navigation/types';
+import {listWorkspacePaths} from '../../adapters/files/workspaceFiles';
+import {WORKSPACE_ROOT} from '../../config/appConfig';
+import type {RootStackParamList} from '../navigation/types';
 import {useWorkspaceQuery} from '../hooks/useWorkspaceQuery';
 import {Divider} from '../primitives/Divider';
 import {EmptyState} from '../primitives/EmptyState';

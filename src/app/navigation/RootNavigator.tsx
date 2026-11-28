@@ -6,7 +6,7 @@ import {ExtensionsScreen} from '../../ui/screens/ExtensionsScreen';
 import {FilePreviewScreen} from '../../ui/screens/FilePreviewScreen';
 import {FilesScreen} from '../../ui/screens/FilesScreen';
 import {useTheme} from '../../ui/theme/ThemeProvider';
-import type {RootStackParamList} from './types';
+import type {RootStackParamList} from '../../ui/navigation/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 

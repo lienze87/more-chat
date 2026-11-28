@@ -74,4 +74,36 @@ describe('citation helpers', () => {
       {number: 2, url: 'https://b.test', title: 'https://b.test'},
     ]);
   });
+
+  it('derives marker numbers and the source list from one ordering', () => {
+    const annotations = [
+      citation('https://b.test', 5),
+      citation('https://a.test', 2),
+      citation('https://b.test', 4),
+    ];
+
+    expect(buildCitedMarkdown('abcdef', annotations).sources).toEqual(
+      extractCitationSources(annotations),
+    );
+    expect(
+      extractCitationSources(annotations).map(source => source.number),
+    ).toEqual([1, 2]);
+  });
+
+  it('ignores annotations that are not URL citations', () => {
+    const malformed = {
+      type: 'other',
+      url_citation: {
+        url: 'https://ignored.test',
+        start_index: 0,
+        end_index: 1,
+      },
+    } as unknown as CitationAnnotation;
+
+    expect(extractCitationSources([malformed])).toEqual([]);
+    expect(buildCitedMarkdown('ab', [malformed])).toEqual({
+      markdown: 'ab',
+      sources: [],
+    });
+  });
 });

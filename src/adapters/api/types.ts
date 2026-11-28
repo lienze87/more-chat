@@ -57,7 +57,6 @@ export interface ChatCompletionRequest {
   )[];
   safety_check?: {level: SafetyLevel};
   title?: {enabled: boolean};
-  max_tokens?: number;
 }
 
 /** 流式 tool_calls 分片：只有第一个分片带 id / name。 */

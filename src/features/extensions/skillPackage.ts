@@ -2,14 +2,8 @@ import {fromByteArray} from 'base64-js';
 import {strToU8, unzipSync} from 'fflate';
 import {parse, stringify} from 'yaml';
 import {SKILL_LIMITS} from '../../config/appConfig';
+import type {SkillPackage} from '../../domain/skills/types';
 import {imageMimeType, isTextPath, relativePath} from './filePaths';
-
-export interface SkillPackage {
-  name: string;
-  description: string;
-  enabled: boolean;
-  files: Record<string, string>;
-}
 
 export const isSkillPathVisible = (path: string): boolean =>
   path.split('/').every(part => !part.startsWith('.') && part !== '__MACOSX');

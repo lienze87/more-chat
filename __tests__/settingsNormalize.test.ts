@@ -1,4 +1,10 @@
 import {normalizeSettings} from '../src/domain/settings/normalize';
+import {
+  REMINDER_LANGUAGES,
+  REASONING_EFFORTS,
+  SAFETY_LEVELS,
+  THEME_MODES,
+} from '../src/domain/settings/options';
 import {DEFAULT_SETTINGS} from '../src/domain/settings/types';
 
 describe('normalizeSettings', () => {
@@ -33,5 +39,22 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({baseUrl: '  '}).baseUrl).toBe(
       DEFAULT_SETTINGS.baseUrl,
     );
+  });
+
+  it('accepts every value declared by the shared option lists', () => {
+    for (const reasoningEffort of REASONING_EFFORTS) {
+      expect(normalizeSettings({reasoningEffort}).reasoningEffort).toBe(
+        reasoningEffort,
+      );
+    }
+    for (const safetyLevel of SAFETY_LEVELS) {
+      expect(normalizeSettings({safetyLevel}).safetyLevel).toBe(safetyLevel);
+    }
+    for (const themeMode of THEME_MODES) {
+      expect(normalizeSettings({themeMode}).themeMode).toBe(themeMode);
+    }
+    for (const language of REMINDER_LANGUAGES) {
+      expect(normalizeSettings({language}).language).toBe(language);
+    }
   });
 });

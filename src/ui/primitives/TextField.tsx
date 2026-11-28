@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import {useTheme} from '../theme/ThemeProvider';
 import {AppText} from './AppText';
-import {webPointer} from './interaction';
 
 export interface TextFieldProps {
   label?: string;
@@ -108,7 +107,6 @@ export function TextField({
         textAlignVertical={multiline ? 'top' : 'center'}
         style={[
           styles.input,
-          webPointer,
           {
             color: colors.text,
             backgroundColor: focused ? colors.surface : colors.surfaceMuted,

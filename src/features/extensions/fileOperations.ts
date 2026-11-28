@@ -13,7 +13,7 @@ import {
 import {imageMimeType, isTextPath, localPath, relativePath} from './filePaths';
 import {FileToolError} from './fileToolError';
 
-export interface FileStat {
+interface FileStat {
   size: number;
   mtime?: number;
 }

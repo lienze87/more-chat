@@ -1,13 +1,8 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View} from 'react-native';
-import type {
-  AssistantMessage,
-  AssistantSegment,
-  ClientToolCall,
-  ServerToolCall,
-} from '../../domain/chat/types';
+import type {AssistantMessage} from '../../domain/chat/types';
 import {DEFAULT_REFUSAL_MESSAGE} from '../../config/appConfig';
-import {copyText} from '../../utils/clipboard';
+import {copyText} from '../../adapters/platform/clipboard';
 import {useTheme} from '../theme/ThemeProvider';
 import {AppText} from '../primitives/AppText';
 import {Button} from '../primitives/Button';
@@ -22,6 +17,12 @@ import {ThinkingBlock} from './ThinkingBlock';
 import {ToolCallCard} from './ToolCallCard';
 import {ToolProcessDisclosure} from './ToolProcessDisclosure';
 import {TypingIndicator} from './TypingIndicator';
+import {
+  groupToolProcess,
+  toBlocks,
+  type AssistantBlock,
+  type ProcessStep,
+} from './assistantTimeline';
 
 interface AssistantMessageViewProps {
   message: AssistantMessage;
@@ -29,48 +30,6 @@ interface AssistantMessageViewProps {
   onRegenerate: () => void;
   /** 点击回复里的本地路径时打开文件预览。 */
   onOpenFile?: (path: string) => void;
-}
-
-type ThinkingSegment = Extract<AssistantSegment, {kind: 'thinking'}>;
-
-type Block =
-  | {
-      kind: 'thinking';
-      text: string;
-      streaming: boolean;
-      startedAt: number;
-      endedAt?: number;
-    }
-  | {kind: 'tool'; call: ServerToolCall}
-  | {kind: 'client_tool'; call: ClientToolCall}
-  | {kind: 'text'; text: string; segmentIndex: number};
-
-type ProcessStep = Extract<Block, {kind: 'thinking' | 'tool'}>;
-type DisplayBlock = Block | {kind: 'process'; steps: ProcessStep[]};
-
-function groupToolProcess(blocks: Block[]): DisplayBlock[] {
-  const grouped: DisplayBlock[] = [];
-  let steps: ProcessStep[] = [];
-
-  const flush = () => {
-    if (steps.some(step => step.kind === 'tool')) {
-      grouped.push({kind: 'process', steps});
-    } else {
-      grouped.push(...steps);
-    }
-    steps = [];
-  };
-
-  for (const block of blocks) {
-    if (block.kind === 'thinking' || block.kind === 'tool') {
-      steps.push(block);
-    } else {
-      flush();
-      grouped.push(block);
-    }
-  }
-  flush();
-  return grouped;
 }
 
 function renderProcessStep(
@@ -91,50 +50,6 @@ function renderProcessStep(
   );
 }
 
-function toBlocks(message: AssistantMessage): Block[] {
-  const blocks: Block[] = [];
-  let thinking: ThinkingSegment[] = [];
-
-  const flushThinking = () => {
-    if (thinking.length === 0) {
-      return;
-    }
-    const last = thinking[thinking.length - 1];
-    const startedAt = thinking[0].startedAt;
-    let endedAt: number | undefined;
-    for (const segment of thinking) {
-      if (segment.endedAt !== undefined) {
-        endedAt = segment.endedAt;
-      }
-    }
-    blocks.push({
-      kind: 'thinking',
-      text: thinking.map(segment => segment.text).join('\n\n'),
-      streaming: last.done !== true,
-      startedAt,
-      endedAt,
-    });
-    thinking = [];
-  };
-
-  for (const [segmentIndex, segment] of message.segments.entries()) {
-    if (segment.kind === 'thinking') {
-      thinking.push(segment);
-      continue;
-    }
-    flushThinking();
-    if (segment.kind === 'tool') {
-      blocks.push({kind: 'tool', call: segment.call});
-    } else if (segment.kind === 'client_tool') {
-      blocks.push({kind: 'client_tool', call: segment.call});
-    } else if (segment.kind === 'text') {
-      blocks.push({kind: 'text', text: segment.text, segmentIndex});
-    }
-  }
-  flushThinking();
-  return blocks;
-}
-
 /** 助手消息：按时间线渲染思考块、工具卡片与 Markdown 正文。 */
 export function AssistantMessageView({
   message,
@@ -146,7 +61,8 @@ export function AssistantMessageView({
   const {colors, spacing} = theme;
   const blocks = useMemo(() => toBlocks(message), [message]);
   const textBlocks = blocks.filter(
-    (block): block is Extract<Block, {kind: 'text'}> => block.kind === 'text',
+    (block): block is Extract<AssistantBlock, {kind: 'text'}> =>
+      block.kind === 'text',
   );
   const annotations = textBlocks.length === 1 ? message.annotations : undefined;
   const displayBlocks =

@@ -1,8 +1,7 @@
 import {create} from 'zustand';
-import {fileStorage} from '../../adapters/files/fileStorage';
-import type {SkillPackage} from './skillPackage';
+import {skillRepository} from '../../adapters/data/repositories/skillRepository';
+import type {SkillPackage} from '../../domain/skills/types';
 
-const keyFor = (name: string) => `skill/${name}`;
 const installing = new Set<string>();
 
 interface SkillsState {
@@ -26,13 +25,7 @@ export const useSkillsStore = create<SkillsState>()((set, get) => ({
   hydrate: async () => {
     set({loading: true, error: null});
     try {
-      const keys = (await fileStorage.keys()).filter(key =>
-        key.startsWith('skill/'),
-      );
-      const records = await Promise.all(keys.map(key => fileStorage.read(key)));
-      const skills = records.flatMap(record =>
-        record === undefined ? [] : [JSON.parse(record) as SkillPackage],
-      );
+      const skills = await skillRepository.load();
       set({skills: skills.sort(byName)});
     } catch {
       set({error: '无法读取本地 Skill，请重试。'});
@@ -51,7 +44,7 @@ export const useSkillsStore = create<SkillsState>()((set, get) => ({
     }
     installing.add(name);
     try {
-      await fileStorage.write(keyFor(name), JSON.stringify(skill));
+      await skillRepository.save(skill);
       set(state => ({skills: [...state.skills, skill].sort(byName)}));
     } finally {
       installing.delete(name);
@@ -64,14 +57,14 @@ export const useSkillsStore = create<SkillsState>()((set, get) => ({
       return;
     }
     const updated = {...skill, enabled: !skill.enabled};
-    await fileStorage.write(keyFor(name), JSON.stringify(updated));
+    await skillRepository.save(updated);
     set(state => ({
       skills: state.skills.map(item => (item.name === name ? updated : item)),
     }));
   },
 
   remove: async name => {
-    await fileStorage.remove(keyFor(name));
+    await skillRepository.remove(name);
     set(state => ({skills: state.skills.filter(item => item.name !== name)}));
   },
 }));

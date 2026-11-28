@@ -23,12 +23,6 @@ export function parseToolArguments(
   }
 }
 
-/** 给 UI 用的一行参数摘要（工具卡片、错误信息）。 */
-export function summarizeToolArguments(call: ClientToolCall): string {
-  const parsed = parseToolArguments(call);
-  return parsed ? summarizeParsedArguments(parsed) : call.argumentsText.trim();
-}
-
 /** 已解析参数的一行摘要，供只解析一次的调用方复用。 */
 export function summarizeParsedArguments(
   parsed: Record<string, unknown>,

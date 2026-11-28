@@ -4,15 +4,18 @@
 
 把 DeepSeek Chat Completions 的扩展能力（思考、服务端工具、引用、标题、安全审核）映射成可渲染、可回放、可持久化的对话模型，并保持 Android 端的流畅与可维护性；同一套代码通过 `react-native-web` 在浏览器中调试。
 
+架构地图、状态所有权、已知偏离与治理任务池见 [架构治理](architecture/GOVERNANCE.md)，影响边界的决定见 [架构决策记录](architecture/DECISIONS.md)。
+
 ## 分层
 
 ```text
 L5  app/            组装：Provider、导航、启动引导
-L5  ui/             展示：screens（页面）、components（消息/思考/工具）、primitives（设计系统）
+L5  ui/             展示：screens（页面）、components（消息/思考/工具）、primitives（设计系统）、navigation（路由契约）
 L4  features/       状态与编排：chatStore、settingsStore、chatEngine、chatRun、streamReducer
-L2  adapters/       实现：api（请求构造、SSE 传输/解析、错误翻译）、data（AsyncStorage 仓储）
+L2  adapters/       实现：api（请求构造、SSE 传输/解析、错误翻译）、data（AsyncStorage 仓储）、files、js、platform（ID、剪贴板、运行平台）
 L0  domain/         纯逻辑：消息模型、客户端工具参数、引用编号、latest_reminder
 L0  config/         常量与默认系统提示词：存储 key、超时、长度上限
+L0  utils/          跨层纯函数：文本、URL；不得依赖平台或状态层
 ```
 
 依赖只允许自上而下。`domain` 和 `config` 独立于应用层与平台实现，核心逻辑可直接用 Jest 覆盖。
@@ -23,15 +26,16 @@ oxlint 不做跨文件依赖分析，knip 只管未使用代码，两者都发�
 倒置。`pnpm arch` 通过 `scripts/check-architecture.mjs` 检查以下规则。脚本复用项目的
 TypeScript 解析器，读取静态导入、重导出、类型依赖和字面量 `import()`。
 
-| 规则                        | 约束                                                                 |
-| --------------------------- | -------------------------------------------------------------------- |
-| `domain`                    | 只能依赖自身；禁止 react / react-native / zustand / AsyncStorage     |
-| `config`                    | 不得依赖 `src/` 内的模块                                             |
-| `ui/primitives`、`ui/theme` | 不得依赖 features / adapters / app（主题由调用方注入）               |
-| `features`                  | 不得依赖 ui                                                          |
-| `adapters`                  | 不得依赖 features / ui / app                                         |
-| `runtime`（规划）           | 只允许 domain 与 ports，禁止 adapters / features / ui / react-native |
-| 全局                        | 任何模块级别的循环依赖                                               |
+| 规则                        | 约束                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `domain`                    | 只能依赖自身与 `zod` schema；禁止 react / react-native / zustand / AsyncStorage |
+| `config`                    | 不得依赖 `src/` 内的模块                                                        |
+| `ui/primitives`、`ui/theme` | 不得依赖 features / adapters / app（主题由调用方注入）                          |
+| `ui`                        | 不得依赖 `app`（路由契约由 `ui/navigation` 拥有）                               |
+| `features`                  | 不得依赖 ui，也不得直接依赖 React Native / Expo 平台包                          |
+| `utils`                     | 只放纯函数；不得依赖 features / adapters / ui / app 或平台包                    |
+| `adapters`                  | 不得依赖 features / ui / app                                                    |
+| 全局                        | 任何模块级别的循环依赖                                                          |
 
 规则写在脚本里，CI 与 `pnpm check` 都会执行。出现分层违规时，输出包含引用位置和原因。
 
@@ -51,6 +55,8 @@ AssistantMessage {
 ```
 
 `segments` 保留模型输出的真实顺序：思考 → 搜索 → 思考 → 阅读网页 → 回答。UI 把相邻 thinking 合并为可折叠块，tool 渲染为卡片，text 渲染为 Markdown。
+
+消息模型和持久化契约在 [`src/domain/chat/schema.ts`](../src/domain/chat/schema.ts) 用 Zod 定义，TypeScript 类型由 `z.infer` 派生；冷启动读取用同一 schema 校验，单条损坏记录会被丢弃。
 
 `ask_user` 调用会暂停运行，等待用户选择或自定义回答后再继续；自定义输入框聚焦期间暂停计时，失焦、离开页面或应用退到后台时恢复剩余计时，60 秒内未确认则按“未选择”返回并继续运行。
 
@@ -91,6 +97,7 @@ ChatScreen.submit
 ## 持久化
 
 - AsyncStorage 存放 `settings` 和 `conversations`。
+- Skill 包通过 `skillRepository` 保存到 `fileStorage` 的 `skill/*` 键，加载时校验结构并跳过损坏记录。
 - 会话写入使用 `createThrottledSaver`：流式期间按 [`PERSISTENCE_INTERVALS.conversationsThrottleMs`](../src/config/appConfig.ts) 合并写入，应用退到后台时立即提交待写数据。
 - 读取时校验当前会话结构，并将中断的生成和工具调用收尾。
 - 原生端通过 `credentialsRepository` 将 API Key 保存至 SecureStore，Web 端由
@@ -106,15 +113,15 @@ ChatScreen.submit
 
 ## 扩展点
 
-| 需求                           | 改动位置                                                                               |
-| ------------------------------ | -------------------------------------------------------------------------------------- |
-| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer                       |
-| 点击文件                       | `MarkdownText` 的 `onOpenPath` 和 `filePaths` 中的应用内路径校验                       |
-| 运行中向用户提问               | `features/extensions/askUser` 的提问队列 + `ask_user` 工具定义 + `AskUserCard`         |
-| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                                                 |
-| 客户端工具（function calling） | `features/extensions/fileTools` 生成每轮工具快照，供模型声明、直接调用和脚本子调用共用 |
-| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                                          |
-| 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts`                    |
+| 需求                           | 改动位置                                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer                                                            |
+| 点击文件                       | `MarkdownText` 的 `onOpenPath` 和 `filePaths` 中的应用内路径校验                                                            |
+| 运行中向用户提问               | `features/extensions/askUser` 的提问队列 + `ask_user` 工具定义 + `AskUserCard`                                              |
+| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                                                                                      |
+| 客户端工具（function calling） | `features/extensions/clientTools` 生成每轮工具快照，`toolDefinitions` 定义 Zod schema；供模型声明、直接调用和脚本子调用共用 |
+| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                                                                               |
+| 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts`                                                         |
 
 [`code_exec` 设计与维护说明](CODE_EXEC.md)记录脚本接口、宿主工具桥接、各平台的执行后端及验证方式。
 

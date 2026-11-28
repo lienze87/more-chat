@@ -273,11 +273,11 @@ export function deriveReasoning(message: AssistantMessage): string {
   }
   return message.segments
     .slice(message.toolRounds?.at(-1)?.segmentEnd ?? 0)
-    .filter(segment => segment.kind === 'thinking')
-    .map(
-      segment =>
-        (segment as Extract<AssistantSegment, {kind: 'thinking'}>).text,
+    .filter(
+      (segment): segment is Extract<AssistantSegment, {kind: 'thinking'}> =>
+        segment.kind === 'thinking',
     )
+    .map(segment => segment.text)
     .join('');
 }
 

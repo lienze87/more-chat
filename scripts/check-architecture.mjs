@@ -118,13 +118,9 @@ async function buildGraph() {
 const RULES = [
   {
     from: /^src\/domain\//,
-    to: /^(?!src\/domain\/)/,
-    reason: 'domain 必须是纯模型层，只能依赖自身',
-  },
-  {
-    from: /^src\/domain\//,
-    to: /^(react$|react-native$|zustand$|@react-native-async-storage\/)/,
-    reason: 'domain 不得依赖 React / RN / zustand / 存储实现',
+    to: /^(?!src\/domain\/)(?!zod$)/,
+    reason:
+      'domain 只能是纯模型层：只依赖自身与 zod schema（禁止 React / RN / 存储实现）',
   },
   {
     from: /^src\/config\//,
@@ -137,19 +133,30 @@ const RULES = [
     reason: '展示原语不得依赖状态层或编排层（主题应由调用方注入）',
   },
   {
+    from: /^src\/ui\//,
+    to: /^src\/app\//,
+    reason: 'ui 不得依赖 app 组装层（路由契约由 ui 拥有）',
+  },
+  {
     from: /^src\/features\//,
     to: /^src\/ui\//,
     reason: 'features 不得依赖 UI',
   },
   {
+    from: /^src\/features\//,
+    to: /^(?:react|react-native|react-native-.*|expo(?:\/.*)?|expo-.*|@expo\/.*|@react-native\/.*|@react-navigation\/.*)$/,
+    reason:
+      'features 通过 adapters/platform 访问平台能力，保持可脱离 React 测试',
+  },
+  {
+    from: /^src\/utils\//,
+    to: /^(?:react|react-native|react-native-.*|expo(?:\/.*)?|expo-.*|@expo\/.*|@react-native\/.*|@react-navigation\/.*|zustand)$|^src\/(?:features|adapters|ui|app)\//,
+    reason: 'utils 只放跨层纯函数；平台实现与状态放 features/adapters',
+  },
+  {
     from: /^src\/adapters\//,
     to: /^src\/(features|ui|app)\//,
     reason: 'adapters 只做协议/存储实现，不得依赖上层',
-  },
-  {
-    from: /^src\/runtime\//,
-    to: /^src\/(features|ui|app|adapters)\/|^(react$|react-native$|zustand$)/,
-    reason: 'runtime 只允许依赖 domain 与 ports，才能脱离 React 与网络被测试',
   },
 ];
 

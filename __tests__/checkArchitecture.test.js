@@ -45,6 +45,50 @@ it.each([
   expect(result.stderr).toContain('src/features/sample.ts:2 -> src/ui/view.ts');
 });
 
+it('treats domain as a leaf, including platform packages', () => {
+  const result = checkFixture({
+    'src/domain/model.ts': "import {useState} from 'react';",
+  });
+
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('发现 1 处层次倒置');
+  expect(result.stderr).toContain('domain 只能是纯模型层');
+});
+
+it('keeps ui independent from the app assembly layer', () => {
+  const result = checkFixture({
+    'src/ui/screen.ts': "import {AppRoot} from '../app/AppRoot';",
+    'src/app/AppRoot.ts': '',
+  });
+
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('发现 1 处层次倒置');
+  expect(result.stderr).toContain('src/ui/screen.ts:1 -> src/app/AppRoot.ts');
+  expect(result.stderr).toContain('ui 不得依赖 app 组装层');
+});
+
+it('keeps feature code independent from platform packages', () => {
+  const result = checkFixture({
+    'src/features/sample.ts': "import {Platform} from 'react-native';",
+  });
+
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('发现 1 处层次倒置');
+  expect(result.stderr).toContain(
+    'features 通过 adapters/platform 访问平台能力',
+  );
+});
+
+it('keeps utils limited to pure cross-layer helpers', () => {
+  const result = checkFixture({
+    'src/utils/format.ts': "import {getRandomValues} from 'expo-crypto';",
+  });
+
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('发现 1 处层次倒置');
+  expect(result.stderr).toContain('utils 只放跨层纯函数');
+});
+
 it('ignores import examples in comments and strings', () => {
   const result = checkFixture({
     'src/features/sample.ts': [

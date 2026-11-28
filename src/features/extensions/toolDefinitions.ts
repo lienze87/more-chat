@@ -5,8 +5,8 @@ import {
   FILE_SEARCH_LIMITS,
   JAVASCRIPT_LIMITS,
   WRITE_TOOL_INPUT_LIMIT,
-} from '../../../config/appConfig';
-import {askUserSchema, requestUserAnswer, toAskUserPrompt} from '../askUser';
+} from '../../config/appConfig';
+import {askUserSchema, requestUserAnswer, toAskUserPrompt} from './askUser';
 import {
   deletePath,
   editTextFile,
@@ -18,9 +18,9 @@ import {
   searchText,
   writeTextFile,
   type FileToolWorkspace,
-} from '../fileOperations';
+} from './fileOperations';
 
-export interface FileToolContext {
+export interface ClientToolContext {
   signal: AbortSignal;
   /** 当前客户端工具调用 id，用于把异步提问与消息里的卡片对应起来。 */
   callId: string;
@@ -30,18 +30,18 @@ export interface FileToolContext {
   runScript: (code: string, signal: AbortSignal) => Promise<string>;
 }
 
-interface FileToolResult {
+interface ClientToolResult {
   text: string;
   imageUrl?: string;
 }
 
-export interface FileToolDefinition<Schema extends z.ZodType = z.ZodType> {
+export interface ClientToolDefinition<Schema extends z.ZodType = z.ZodType> {
   description: string;
   parameters: Schema;
   execute(
     args: z.output<Schema>,
-    context: FileToolContext,
-  ): Promise<FileToolResult>;
+    context: ClientToolContext,
+  ): Promise<ClientToolResult>;
   programmatic?: boolean;
   inputLimit?: number;
   requiresImages?: boolean;
@@ -75,8 +75,8 @@ const listDirectorySchema = z.strictObject({path: directory, offset});
 
 async function executeListDirectory(
   args: z.output<typeof listDirectorySchema>,
-  {workspace}: FileToolContext,
-): Promise<FileToolResult> {
+  {workspace}: ClientToolContext,
+): Promise<ClientToolResult> {
   return {text: JSON.stringify(await listDirectory(args, workspace))};
 }
 
@@ -85,14 +85,14 @@ const listDirectoryDefinition = {
   parameters: listDirectorySchema,
   execute: executeListDirectory,
   programmatic: true,
-} satisfies FileToolDefinition<typeof listDirectorySchema>;
+} satisfies ClientToolDefinition<typeof listDirectorySchema>;
 
 const findFilesSchema = z.strictObject({path: directory, pattern, offset});
 
 async function executeFindFiles(
   args: z.output<typeof findFilesSchema>,
-  {workspace}: FileToolContext,
-): Promise<FileToolResult> {
+  {workspace}: ClientToolContext,
+): Promise<ClientToolResult> {
   return {text: JSON.stringify(await findFiles(args, workspace))};
 }
 
@@ -101,7 +101,7 @@ const findFilesDefinition = {
   parameters: findFilesSchema,
   execute: executeFindFiles,
   programmatic: true,
-} satisfies FileToolDefinition<typeof findFilesSchema>;
+} satisfies ClientToolDefinition<typeof findFilesSchema>;
 
 const deletePathSchema = z.strictObject({
   path: pathParam,
@@ -110,8 +110,8 @@ const deletePathSchema = z.strictObject({
 
 async function executeDeletePath(
   args: z.output<typeof deletePathSchema>,
-  {workspace, signal}: FileToolContext,
-): Promise<FileToolResult> {
+  {workspace, signal}: ClientToolContext,
+): Promise<ClientToolResult> {
   return {text: JSON.stringify(await deletePath(args, workspace, signal))};
 }
 
@@ -121,7 +121,7 @@ const deletePathDefinition = {
   parameters: deletePathSchema,
   execute: executeDeletePath,
   programmatic: true,
-} satisfies FileToolDefinition<typeof deletePathSchema>;
+} satisfies ClientToolDefinition<typeof deletePathSchema>;
 
 const movePathSchema = z.strictObject({
   from: pathParam,
@@ -131,8 +131,8 @@ const movePathSchema = z.strictObject({
 
 async function executeMovePath(
   args: z.output<typeof movePathSchema>,
-  {workspace, signal}: FileToolContext,
-): Promise<FileToolResult> {
+  {workspace, signal}: ClientToolContext,
+): Promise<ClientToolResult> {
   return {text: JSON.stringify(await movePath(args, workspace, signal))};
 }
 
@@ -142,7 +142,7 @@ const movePathDefinition = {
   parameters: movePathSchema,
   execute: executeMovePath,
   programmatic: true,
-} satisfies FileToolDefinition<typeof movePathSchema>;
+} satisfies ClientToolDefinition<typeof movePathSchema>;
 
 const cursorError = '请使用上一次搜索返回的 next_cursor。';
 const queryError = `必须是 1 到 ${FILE_SEARCH_LIMITS.maxQueryLength} 字符的单行文本。`;
@@ -173,8 +173,8 @@ const searchTextSchema = z.strictObject({
 
 async function executeSearchText(
   args: z.output<typeof searchTextSchema>,
-  {workspace, signal}: FileToolContext,
-): Promise<FileToolResult> {
+  {workspace, signal}: ClientToolContext,
+): Promise<ClientToolResult> {
   return {text: JSON.stringify(await searchText(args, workspace, signal))};
 }
 
@@ -184,7 +184,7 @@ const searchTextDefinition = {
   parameters: searchTextSchema,
   execute: executeSearchText,
   programmatic: true,
-} satisfies FileToolDefinition<typeof searchTextSchema>;
+} satisfies ClientToolDefinition<typeof searchTextSchema>;
 
 const readFileSchema = z.strictObject({
   path: skillPathParam,
@@ -201,8 +201,8 @@ const readFileSchema = z.strictObject({
 
 async function executeReadFile(
   args: z.output<typeof readFileSchema>,
-  {workspace, signal}: FileToolContext,
-): Promise<FileToolResult> {
+  {workspace, signal}: ClientToolContext,
+): Promise<ClientToolResult> {
   return {text: JSON.stringify(await readTextFile(args, workspace, signal))};
 }
 
@@ -211,7 +211,7 @@ const readFileDefinition = {
   parameters: readFileSchema,
   execute: executeReadFile,
   programmatic: true,
-} satisfies FileToolDefinition<typeof readFileSchema>;
+} satisfies ClientToolDefinition<typeof readFileSchema>;
 
 function writeMessage({path, changed}: {path: string; changed: boolean}) {
   return changed ? `已保存 ${path}` : `文件内容未发生变化：${path}`;
@@ -225,8 +225,8 @@ const writeFileSchema = z.strictObject({
 
 async function executeWriteFile(
   args: z.output<typeof writeFileSchema>,
-  {workspace, signal, script}: FileToolContext,
-): Promise<FileToolResult> {
+  {workspace, signal, script}: ClientToolContext,
+): Promise<ClientToolResult> {
   if (script && script.writeCount >= FILE_LIMITS.maxWritesPerScript) {
     throw new Error(
       `每次脚本执行最多保存 ${FILE_LIMITS.maxWritesPerScript} 个文件。`,
@@ -258,7 +258,7 @@ const writeFileDefinition = {
   execute: executeWriteFile,
   programmatic: true,
   inputLimit: WRITE_TOOL_INPUT_LIMIT,
-} satisfies FileToolDefinition<typeof writeFileSchema>;
+} satisfies ClientToolDefinition<typeof writeFileSchema>;
 
 const editFileSchema = z.strictObject({
   path: pathParam,
@@ -269,8 +269,8 @@ const editFileSchema = z.strictObject({
 
 async function executeEditFile(
   args: z.output<typeof editFileSchema>,
-  {workspace, signal}: FileToolContext,
-): Promise<FileToolResult> {
+  {workspace, signal}: ClientToolContext,
+): Promise<ClientToolResult> {
   return {
     text: JSON.stringify(await editTextFile(args, workspace, signal)),
   };
@@ -281,14 +281,14 @@ const editFileDefinition = {
     '在 workspace/ 的 UTF-8 文本文件中替换 old_text，返回 {path, changed, replaced}。默认要求唯一匹配；all: true 替换全部。',
   parameters: editFileSchema,
   execute: executeEditFile,
-} satisfies FileToolDefinition<typeof editFileSchema>;
+} satisfies ClientToolDefinition<typeof editFileSchema>;
 
 const readImageSchema = z.strictObject({path: skillPathParam});
 
 async function executeReadImage(
   args: z.output<typeof readImageSchema>,
-  {workspace, signal, imageBudget}: FileToolContext,
-): Promise<FileToolResult> {
+  {workspace, signal, imageBudget}: ClientToolContext,
+): Promise<ClientToolResult> {
   const image = await readImageFile(args, workspace, signal, imageBudget);
   return {
     text: `已读取图片 ${image.path}`,
@@ -302,7 +302,7 @@ const readImageDefinition = {
   parameters: readImageSchema,
   execute: executeReadImage,
   requiresImages: true,
-} satisfies FileToolDefinition<typeof readImageSchema>;
+} satisfies ClientToolDefinition<typeof readImageSchema>;
 
 const codeExecSchema = z.strictObject({
   code: stringParam.min(1).max(JAVASCRIPT_LIMITS.maxCodeLength),
@@ -310,8 +310,8 @@ const codeExecSchema = z.strictObject({
 
 async function executeCode(
   {code}: z.output<typeof codeExecSchema>,
-  {signal, runScript}: FileToolContext,
-): Promise<FileToolResult> {
+  {signal, runScript}: ClientToolContext,
+): Promise<ClientToolResult> {
   return {text: await runScript(code, signal)};
 }
 
@@ -320,12 +320,12 @@ const codeExecDefinition = {
     '在独立 JavaScript 环境中编排本地文件工具并处理数据。使用 await tools.call(name, args) 调用工具，用 return 返回最终结果。脚本无网络、定时器和 Intl，可用 TextEncoder/TextDecoder/atob/btoa；异常会附带最近工具调用。',
   parameters: codeExecSchema,
   execute: executeCode,
-} satisfies FileToolDefinition<typeof codeExecSchema>;
+} satisfies ClientToolDefinition<typeof codeExecSchema>;
 
 async function executeAskUser(
   args: z.output<typeof askUserSchema>,
-  {callId, signal}: FileToolContext,
-): Promise<FileToolResult> {
+  {callId, signal}: ClientToolContext,
+): Promise<ClientToolResult> {
   const answer = await requestUserAnswer(callId, toAskUserPrompt(args), signal);
   return {
     text: JSON.stringify({
@@ -346,9 +346,9 @@ const askUserDefinition = {
   description: `当关键选择会实质改变结果、需要用户拍板时，向用户提问并提供 2–4 个选项。应用会暂停本轮，直到用户选择、输入自定义回答或停止生成；结果以 JSON 返回。若用户在 ${ASK_USER_LIMITS.timeoutMs / 1000} 秒内没有确认（聚焦自定义输入框期间暂停计时），应用会自动继续并返回 {timed_out: true, selected: []}，此时请自行判断后续行动。不要为可以合理推断的小事提问，也不要用它征求确认已明确的要求。`,
   parameters: askUserSchema,
   execute: executeAskUser,
-} satisfies FileToolDefinition<typeof askUserSchema>;
+} satisfies ClientToolDefinition<typeof askUserSchema>;
 
-export const fileToolDefinitions = {
+export const clientToolDefinitions = {
   list_dir: listDirectoryDefinition,
   find_files: findFilesDefinition,
   search_text: searchTextDefinition,
@@ -360,4 +360,4 @@ export const fileToolDefinitions = {
   move_path: movePathDefinition,
   code_exec: codeExecDefinition,
   ask_user: askUserDefinition,
-} satisfies Record<string, FileToolDefinition>;
+} satisfies Record<string, ClientToolDefinition>;
