@@ -6,7 +6,7 @@ import {
   requestUserAnswer,
   useAskUserStore,
 } from '../src/features/extensions/askUser';
-import {createFileTools} from '../src/features/extensions/fileTools';
+import {createClientTools} from '../src/features/extensions/clientTools';
 
 jest.mock('../src/adapters/files/fileStorage', () => ({
   fileStorage: {
@@ -42,7 +42,7 @@ beforeEach(() => {
 
 describe('ask_user', () => {
   it('waits for a submitted option and returns it as the tool result', async () => {
-    const {execute} = createFileTools([], false);
+    const {execute} = createClientTools([], false);
     const pending = execute(
       call('ask_user', question),
       new AbortController().signal,
@@ -67,7 +67,7 @@ describe('ask_user', () => {
   });
 
   it('supports a custom answer and multi-select', async () => {
-    const {execute} = createFileTools([], false);
+    const {execute} = createClientTools([], false);
     const pending = execute(
       call('ask_user', {...question, multi_select: true}),
       new AbortController().signal,
@@ -86,7 +86,7 @@ describe('ask_user', () => {
 
   it('cancels the pending question when the run is aborted', async () => {
     const controller = new AbortController();
-    const {execute} = createFileTools([], false);
+    const {execute} = createClientTools([], false);
     const pending = execute(call('ask_user', question), controller.signal);
 
     controller.abort();
@@ -96,7 +96,7 @@ describe('ask_user', () => {
   });
 
   it('rejects questions without enough options before touching the queue', async () => {
-    const {execute} = createFileTools([], false);
+    const {execute} = createClientTools([], false);
     await expect(
       execute(
         call('ask_user', {
@@ -116,7 +116,7 @@ describe('ask_user', () => {
   ])(
     'rejects whitespace-only prompt fields before touching the queue',
     async args => {
-      const {execute} = createFileTools([], false);
+      const {execute} = createClientTools([], false);
       const input = call('ask_user', args);
       await expect(
         execute(input, new AbortController().signal),
@@ -127,7 +127,7 @@ describe('ask_user', () => {
   );
 
   it('rejects duplicate option labels before touching the queue', async () => {
-    const {execute} = createFileTools([], false);
+    const {execute} = createClientTools([], false);
     await expect(
       execute(
         call('ask_user', {
@@ -239,7 +239,7 @@ describe('ask_user', () => {
   it('returns timed_out from the tool so the run can continue', async () => {
     jest.useFakeTimers();
     try {
-      const {execute} = createFileTools([], false);
+      const {execute} = createClientTools([], false);
       const pending = execute(
         call('ask_user', question),
         new AbortController().signal,

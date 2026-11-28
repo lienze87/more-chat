@@ -20,7 +20,7 @@ import {
 } from '../../config/appConfig';
 import {useChatStore} from './chatStore';
 import {useSettingsStore} from '../settings/settingsStore';
-import {createFileTools} from '../extensions/fileTools';
+import {createClientTools} from '../extensions/clientTools';
 import {useSkillsStore} from '../extensions/skillsStore';
 import {modelSupportsImages, resolveModel} from '../../domain/settings/models';
 import {createChatRunController} from './chatRun';
@@ -81,7 +81,10 @@ async function runCompletion(params: {
 
   const model = resolveModel(settings.model);
   const skills = useSkillsStore.getState().skills;
-  const fileTools = createFileTools(skills, modelSupportsImages(model));
+  const clientToolSnapshot = createClientTools(
+    skills,
+    modelSupportsImages(model),
+  );
   await chatRun.start({
     conversationId,
     assistantId,
@@ -89,10 +92,10 @@ async function runCompletion(params: {
       conversation,
       settings,
       isFirstTurn,
-      clientTools: fileTools.definitions,
-      toolPrompt: fileTools.prompt,
+      clientTools: clientToolSnapshot.definitions,
+      toolPrompt: clientToolSnapshot.prompt,
     }),
-    clientTools: fileTools,
+    clientTools: clientToolSnapshot,
     apiKey,
     baseUrl: settings.baseUrl,
     timeoutMs: NETWORK_TIMEOUT_MS,

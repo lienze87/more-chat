@@ -70,7 +70,7 @@ Windows 下 Jest 需显式设置 `NODE_OPTIONS=--experimental-vm-modules`。
 可能漂移。
 
 **决定**：`features/extensions/appFiles.ts` 提供 `readSkillFile` 与 `readAppFile`，
-用显式的 `skillAccess: 'enabled' | 'all'` 表达调用方权限；`fileTools` 传 `enabled`，
+用显式的 `skillAccess: 'enabled' | 'all'` 表达调用方权限；`clientTools` 传 `enabled`，
 `FilePreviewScreen` 传 `all`。`workspace/` 的读取也走同一入口。
 
 **后果**：新增文件来源（例如未来只读资源目录）只需改 `readAppFile`。`workspaceFiles`
@@ -114,3 +114,17 @@ inset，还包含 rAF 合并、`FlatList` ref、用户滚动判定和 Web `visua
 
 **后果**：新增服务端工具动作类型时只改展示模块；单测覆盖标题、域名回退、URL 去重
 与未完成页面不计数的规则。
+
+## ADR-0010：客户端工具注册表与工具定义分层命名
+
+**背景**：`fileTools.ts` 实际注册了 `ask_user`、`code_exec` 等非文件工具，
+`FileToolSnapshot`、`FileToolContext`、`FileToolDefinition` 也覆盖全部客户端工具。
+命名把“文件操作”和“客户端工具协议”混在一起，新增工具时需要先分辨层次。
+
+**决定**：统一为客户端工具命名：`clientTools.ts` 是运行时注册表与快照，
+`toolDefinitions.ts` 是 Zod schema 与定义表；类型改为 `ClientToolSnapshot`、
+`ClientToolContext`、`ClientToolDefinition`、`ClientToolResult`。真正只服务于文件
+操作的 `FileToolWorkspace`、`FileToolError`、`fileOperations` 保留原名。
+
+**后果**：文件操作与客户端工具协议边界清晰；`toolDefinitions.ts` 不再位于
+`tools/index.ts` 这种浅 barrel 里。文档中的路径同步更新。

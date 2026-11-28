@@ -14,14 +14,14 @@ import {readAppFile} from './appFiles';
 import {FileToolError} from './fileToolError';
 import type {SkillPackage} from './skillPackage';
 import {
-  fileToolDefinitions,
-  type FileToolContext,
-  type FileToolDefinition,
-} from './tools';
+  clientToolDefinitions,
+  type ClientToolContext,
+  type ClientToolDefinition,
+} from './toolDefinitions';
 
 type ToolCallInput = Pick<ClientToolCall, 'id' | 'name' | 'argumentsText'>;
 
-function registerTool(name: string, tool: FileToolDefinition) {
+function registerTool(name: string, tool: ClientToolDefinition) {
   const parameters = z.toJSONSchema(tool.parameters, {
     io: 'input',
     target: 'draft-07',
@@ -36,7 +36,7 @@ function registerTool(name: string, tool: FileToolDefinition) {
     definition,
     programmatic: tool.programmatic,
     inputLimit: tool.inputLimit,
-    async execute(input: unknown, context: FileToolContext) {
+    async execute(input: unknown, context: ClientToolContext) {
       const parsed = tool.parameters.safeParse(input, {
         error: issue =>
           issue.code === 'unrecognized_keys' ? '包含未声明的参数。' : undefined,
@@ -54,7 +54,7 @@ function registerTool(name: string, tool: FileToolDefinition) {
   };
 }
 
-export function createFileTools(
+export function createClientTools(
   skills: SkillPackage[],
   supportsImages: boolean,
 ) {
@@ -90,8 +90,8 @@ export function createFileTools(
   };
   const imageBudget = {remainingChars: FILE_LIMITS.maxImageOutputCharsPerRun};
   const available = new Map<string, ReturnType<typeof registerTool>>();
-  for (const [name, tool] of Object.entries<FileToolDefinition>(
-    fileToolDefinitions,
+  for (const [name, tool] of Object.entries<ClientToolDefinition>(
+    clientToolDefinitions,
   )) {
     if (!tool.requiresImages || supportsImages) {
       available.set(name, registerTool(name, tool));
@@ -108,7 +108,7 @@ export function createFileTools(
   async function invoke(
     call: ToolCallInput,
     signal: AbortSignal,
-    script?: FileToolContext['script'],
+    script?: ClientToolContext['script'],
   ) {
     const tool = available.get(call.name);
     if (script && !tool?.programmatic) {
@@ -171,15 +171,18 @@ export function createFileTools(
 
   return {
     definitions: [...available.values()].map(tool => tool.definition),
-    prompt: fileToolPrompt(enabledSkills, scriptNames),
+    prompt: clientToolPrompt(enabledSkills, scriptNames),
     has: (name: string) => available.has(name),
     execute: (call: ToolCallInput, signal: AbortSignal) => invoke(call, signal),
   };
 }
 
-export type FileToolSnapshot = ReturnType<typeof createFileTools>;
+export type ClientToolSnapshot = ReturnType<typeof createClientTools>;
 
-function fileToolPrompt(skills: SkillPackage[], scriptNames: string[]): string {
+function clientToolPrompt(
+  skills: SkillPackage[],
+  scriptNames: string[],
+): string {
   const catalog = skills.map(skill => ({
     name: skill.name,
     description: skill.description,

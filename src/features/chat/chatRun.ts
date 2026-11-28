@@ -14,7 +14,7 @@ import type {
   ClientToolCall,
   Conversation,
 } from '../../domain/chat/types';
-import type {FileToolSnapshot} from '../extensions/fileTools';
+import type {ClientToolSnapshot} from '../extensions/clientTools';
 import {FileToolError} from '../extensions/fileToolError';
 import {
   applyFinishReason,
@@ -69,7 +69,7 @@ export interface ChatRunRequest {
   apiKey: string;
   baseUrl: string;
   timeoutMs: number;
-  clientTools: Pick<FileToolSnapshot, 'has' | 'execute'>;
+  clientTools: Pick<ClientToolSnapshot, 'has' | 'execute'>;
 }
 
 export interface ChatRunController {

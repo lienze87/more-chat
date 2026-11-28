@@ -4,7 +4,7 @@ import {fileStorage} from '../src/adapters/files/fileStorage';
 import {FILE_LIMITS, JAVASCRIPT_LIMITS} from '../src/config/appConfig';
 import type {ClientToolCall} from '../src/domain/chat/types';
 import {FileToolError} from '../src/features/extensions/fileToolError';
-import {createFileTools} from '../src/features/extensions/fileTools';
+import {createClientTools} from '../src/features/extensions/clientTools';
 import {
   createSkillPackage,
   parseSkillPackage,
@@ -70,7 +70,7 @@ it('discovers an imported skill, restores its setting and excludes disabled file
   await useSkillsStore.getState().install(skill);
   await useSkillsStore.getState().hydrate();
   const {skills, toggle, remove} = useSkillsStore.getState();
-  const {execute, prompt} = createFileTools(skills, true);
+  const {execute, prompt} = createClientTools(skills, true);
   expect(prompt).toContain('skills/notes/SKILL.md');
   const path = 'skills/notes/references/data.json';
   expect(
@@ -93,7 +93,7 @@ it('discovers an imported skill, restores its setting and excludes disabled file
   await useSkillsStore.getState().hydrate();
   const restored = useSkillsStore.getState().skills;
   expect(restored[0].enabled).toBe(false);
-  const nextTools = createFileTools(restored, true);
+  const nextTools = createClientTools(restored, true);
   expect(nextTools.prompt).not.toContain('skills/notes/SKILL.md');
   await expect(
     nextTools.execute(call('read_file', {path}), signal),
@@ -149,7 +149,7 @@ it('creates a valid Skill from the form fields and restores it from storage', as
 });
 
 it('lists and safely creates, reads and edits workspace files', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const run = (name: string, args: Record<string, unknown>) =>
     execute(call(name, args), signal);
   const path = 'workspace/drafts/notes.md';
@@ -170,7 +170,7 @@ it('lists and safely creates, reads and edits workspace files', async () => {
 });
 
 it('requires explicit paths in direct tool and script calls', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const path = 'workspace/洛神赋.md';
   await expect(
     execute(
@@ -202,7 +202,7 @@ it('requires explicit paths in direct tool and script calls', async () => {
 });
 
 it('replaces every match when edit_file receives all', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const path = 'workspace/repeat.txt';
   await fileStorage.write(path, 'a\na\n');
   await expect(
@@ -225,7 +225,7 @@ it('replaces every match when edit_file receives all', async () => {
 });
 
 it('runs a script that lists, reads and filters workspace files', async () => {
-  const {definitions, execute} = createFileTools([], false);
+  const {definitions, execute} = createClientTools([], false);
   expect(definitions.map(tool => tool.function.name)).toContain('code_exec');
   await fileStorage.write('workspace/orders.json', '[{"id":1},{"id":2}]');
   await fileStorage.write('workspace/notes.md', 'ignored');
@@ -246,8 +246,8 @@ it('runs a script that lists, reads and filters workspace files', async () => {
 });
 
 it('keeps declarations and direct calls aligned with the model capabilities', async () => {
-  const textTools = createFileTools([], false);
-  const imageTools = createFileTools([], true);
+  const textTools = createClientTools([], false);
+  const imageTools = createClientTools([], true);
   const image = call('read_image', {path: 'workspace/example.png'});
   expect(textTools.definitions.map(tool => tool.function.name)).not.toContain(
     image.name,
@@ -263,7 +263,7 @@ it('keeps declarations and direct calls aligned with the model capabilities', as
 });
 
 it('limits scripts to registered tools and an isolated JavaScript context', async () => {
-  const {execute} = createFileTools([], true);
+  const {execute} = createClientTools([], true);
   const run = (code: string) => execute(call('code_exec', {code}), signal);
   await expect(
     run(
@@ -289,7 +289,7 @@ it('limits scripts to registered tools and an isolated JavaScript context', asyn
 });
 
 it('validates direct and scripted writes before changing the workspace', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const args = {path: 'workspace/out.md', content: 1};
   await expect(execute(call('write_file', args), signal)).rejects.toThrow(
     'content 必须是字符串',
@@ -306,7 +306,7 @@ it('validates direct and scripted writes before changing the workspace', async (
 });
 
 it('publishes the Zod input schema and rejects undeclared arguments', async () => {
-  const {definitions, execute} = createFileTools([], false);
+  const {definitions, execute} = createClientTools([], false);
   const definition = definitions.find(
     tool => tool.function.name === 'write_file',
   );
@@ -330,7 +330,7 @@ it('publishes the Zod input schema and rejects undeclared arguments', async () =
 
 it('finds files recursively with relative patterns and path pagination', async () => {
   const enabled = parseSkillPackage('notes.zip', skillArchive);
-  const {definitions, execute} = createFileTools([enabled], false);
+  const {definitions, execute} = createClientTools([enabled], false);
   const run = async (args: Record<string, unknown>) =>
     JSON.parse((await execute(call('find_files', args), signal)).text);
   expect(definitions.map(tool => tool.function.name)).toEqual(
@@ -395,7 +395,7 @@ it('finds files recursively with relative patterns and path pagination', async (
 });
 
 it('lists directory metadata and reports the total', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   await fileStorage.write('workspace/meta.txt', 'abc');
   const page = JSON.parse(
     (await execute(call('list_dir', {path: 'workspace', offset: 0}), signal))
@@ -410,7 +410,7 @@ it('lists directory metadata and reports the total', async () => {
 
 it('searches literal matches with line numbers and resumes within a file', async () => {
   const skill = parseSkillPackage('notes.zip', skillArchive);
-  const {execute} = createFileTools([{...skill, enabled: false}], false);
+  const {execute} = createClientTools([{...skill, enabled: false}], false);
   const run = async (args: Record<string, unknown>) =>
     JSON.parse(
       (await execute(call('search_text', {query: 'a.b', ...args}), signal))
@@ -440,7 +440,7 @@ it('searches literal matches with line numbers and resumes within a file', async
 });
 
 it('ignores case when case_sensitive is false', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const run = async (caseSensitive: boolean) =>
     JSON.parse(
       (
@@ -472,7 +472,7 @@ it('ignores case when case_sensitive is false', async () => {
 });
 
 it('returns a cursor when the first search page has no matches', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   await Promise.all(
     Array.from({length: 24}, (_, index) =>
       fileStorage.write(`workspace/${index}.txt`, 'none'),
@@ -494,7 +494,7 @@ it('returns a cursor when the first search page has no matches', async () => {
 });
 
 it('resumes after scanning a long line without a match', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   await fileStorage.write(
     'workspace/long.log',
     `${'x'.repeat(1_000_000)}\rneedle`,
@@ -514,7 +514,7 @@ it('resumes after scanning a long line without a match', async () => {
 });
 
 it('finds and searches files in code mode and saves multiple artifacts', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const run = (code: string) => execute(call('code_exec', {code}), signal);
   await fileStorage.write('workspace/data/orders.json', '[{"status":"open"}]');
   const path = 'workspace/report.csv';
@@ -570,7 +570,7 @@ it('finds and searches files in code mode and saves multiple artifacts', async (
 });
 
 it('exposes UTF-8 and base64 helpers inside scripts', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const code = `
     const bytes = new TextEncoder().encode('中文');
     return {
@@ -593,7 +593,7 @@ it('exposes UTF-8 and base64 helpers inside scripts', async () => {
 });
 
 it('enforces the script tool call limit and exposes the remaining count', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const failure = await execute(
     call('code_exec', {
       code: `
@@ -613,7 +613,7 @@ it('enforces the script tool call limit and exposes the remaining count', async 
 });
 
 it('reports recent tool calls and script logs when a script fails', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const failure = await execute(
     call('code_exec', {
       code: `
@@ -636,7 +636,7 @@ it('reports recent tool calls and script logs when a script fails', async () => 
 });
 
 it('wires delete_path and move_path into direct and scripted calls', async () => {
-  const {definitions, execute} = createFileTools([], false);
+  const {definitions, execute} = createClientTools([], false);
   expect(definitions.map(tool => tool.function.name)).toEqual(
     expect.arrayContaining(['delete_path', 'move_path']),
   );
@@ -669,7 +669,7 @@ it('wires delete_path and move_path into direct and scripted calls', async () =>
 });
 
 it('interrupts runaway scripts and limits returned text', async () => {
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   const run = (code: string) => execute(call('code_exec', {code}), signal);
   await expect(run('while (true) {}')).rejects.toThrow('执行超时');
   await expect(
@@ -680,7 +680,7 @@ it('interrupts runaway scripts and limits returned text', async () => {
 
 it('stops waiting for a workspace read when the turn is cancelled', async () => {
   const controller = new AbortController();
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   let finishRead: ((content: string) => void) | undefined;
   jest.spyOn(fileStorage, 'read').mockImplementationOnce(() => {
     setTimeout(() => controller.abort(), 0);
@@ -705,7 +705,7 @@ it('stops waiting for a workspace read when the turn is cancelled', async () => 
 
 it('cancels a script save while waiting to check the workspace', async () => {
   const controller = new AbortController();
-  const {execute} = createFileTools([], false);
+  const {execute} = createClientTools([], false);
   let finishList: ((keys: string[]) => void) | undefined;
   jest.spyOn(fileStorage, 'keys').mockImplementationOnce(() => {
     setTimeout(() => controller.abort(), 0);

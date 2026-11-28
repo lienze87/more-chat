@@ -110,15 +110,15 @@ ChatScreen.submit
 
 ## 扩展点
 
-| 需求                           | 改动位置                                                                               |
-| ------------------------------ | -------------------------------------------------------------------------------------- |
-| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer                       |
-| 点击文件                       | `MarkdownText` 的 `onOpenPath` 和 `filePaths` 中的应用内路径校验                       |
-| 运行中向用户提问               | `features/extensions/askUser` 的提问队列 + `ask_user` 工具定义 + `AskUserCard`         |
-| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                                                 |
-| 客户端工具（function calling） | `features/extensions/fileTools` 生成每轮工具快照，供模型声明、直接调用和脚本子调用共用 |
-| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                                          |
-| 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts`                    |
+| 需求                           | 改动位置                                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer                                                            |
+| 点击文件                       | `MarkdownText` 的 `onOpenPath` 和 `filePaths` 中的应用内路径校验                                                            |
+| 运行中向用户提问               | `features/extensions/askUser` 的提问队列 + `ask_user` 工具定义 + `AskUserCard`                                              |
+| 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                                                                                      |
+| 客户端工具（function calling） | `features/extensions/clientTools` 生成每轮工具快照，`toolDefinitions` 定义 Zod schema；供模型声明、直接调用和脚本子调用共用 |
+| 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                                                                               |
+| 凭据存储                       | `credentialsRepository.ts`（原生）和 `credentialsRepository.web.ts`                                                         |
 
 [`code_exec` 设计与维护说明](CODE_EXEC.md)记录脚本接口、宿主工具桥接、各平台的执行后端及验证方式。
 
