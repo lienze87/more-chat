@@ -10,7 +10,7 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {exportTextFile} from '../../adapters/files/exportTextFile';
 import {readWorkspaceFile} from '../../adapters/files/workspaceFiles';
-import type {RootStackParamList} from '../../app/navigation/types';
+import type {RootStackParamList} from '../navigation/types';
 import {
   imageMimeType,
   skillPathParts,

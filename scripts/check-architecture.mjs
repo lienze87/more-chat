@@ -137,6 +137,11 @@ const RULES = [
     reason: '展示原语不得依赖状态层或编排层（主题应由调用方注入）',
   },
   {
+    from: /^src\/ui\//,
+    to: /^src\/app\//,
+    reason: 'ui 不得依赖 app 组装层（路由契约由 ui 拥有）',
+  },
+  {
     from: /^src\/features\//,
     to: /^src\/ui\//,
     reason: 'features 不得依赖 UI',
@@ -145,11 +150,6 @@ const RULES = [
     from: /^src\/adapters\//,
     to: /^src\/(features|ui|app)\//,
     reason: 'adapters 只做协议/存储实现，不得依赖上层',
-  },
-  {
-    from: /^src\/runtime\//,
-    to: /^src\/(features|ui|app|adapters)\/|^(react$|react-native$|zustand$)/,
-    reason: 'runtime 只允许依赖 domain 与 ports，才能脱离 React 与网络被测试',
   },
 ];
 

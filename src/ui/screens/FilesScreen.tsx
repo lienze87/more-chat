@@ -6,7 +6,7 @@ import {
   listWorkspacePaths,
   WORKSPACE_ROOT,
 } from '../../adapters/files/workspaceFiles';
-import type {RootStackParamList} from '../../app/navigation/types';
+import type {RootStackParamList} from '../navigation/types';
 import {useWorkspaceQuery} from '../hooks/useWorkspaceQuery';
 import {Divider} from '../primitives/Divider';
 import {EmptyState} from '../primitives/EmptyState';

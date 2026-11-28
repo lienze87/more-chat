@@ -4,11 +4,13 @@
 
 把 DeepSeek Chat Completions 的扩展能力（思考、服务端工具、引用、标题、安全审核）映射成可渲染、可回放、可持久化的对话模型，并保持 Android 端的流畅与可维护性；同一套代码通过 `react-native-web` 在浏览器中调试。
 
+架构地图、状态所有权、已知偏离与治理任务池见 [架构治理](architecture/GOVERNANCE.md)，影响边界的决定见 [架构决策记录](architecture/DECISIONS.md)。
+
 ## 分层
 
 ```text
 L5  app/            组装：Provider、导航、启动引导
-L5  ui/             展示：screens（页面）、components（消息/思考/工具）、primitives（设计系统）
+L5  ui/             展示：screens（页面）、components（消息/思考/工具）、primitives（设计系统）、navigation（路由契约）
 L4  features/       状态与编排：chatStore、settingsStore、chatEngine、chatRun、streamReducer
 L2  adapters/       实现：api（请求构造、SSE 传输/解析、错误翻译）、data（AsyncStorage 仓储）
 L0  domain/         纯逻辑：消息模型、客户端工具参数、引用编号、latest_reminder
@@ -23,15 +25,15 @@ oxlint 不做跨文件依赖分析，knip 只管未使用代码，两者都发�
 倒置。`pnpm arch` 通过 `scripts/check-architecture.mjs` 检查以下规则。脚本复用项目的
 TypeScript 解析器，读取静态导入、重导出、类型依赖和字面量 `import()`。
 
-| 规则                        | 约束                                                                 |
-| --------------------------- | -------------------------------------------------------------------- |
-| `domain`                    | 只能依赖自身；禁止 react / react-native / zustand / AsyncStorage     |
-| `config`                    | 不得依赖 `src/` 内的模块                                             |
-| `ui/primitives`、`ui/theme` | 不得依赖 features / adapters / app（主题由调用方注入）               |
-| `features`                  | 不得依赖 ui                                                          |
-| `adapters`                  | 不得依赖 features / ui / app                                         |
-| `runtime`（规划）           | 只允许 domain 与 ports，禁止 adapters / features / ui / react-native |
-| 全局                        | 任何模块级别的循环依赖                                               |
+| 规则                        | 约束                                                             |
+| --------------------------- | ---------------------------------------------------------------- |
+| `domain`                    | 只能依赖自身；禁止 react / react-native / zustand / AsyncStorage |
+| `config`                    | 不得依赖 `src/` 内的模块                                         |
+| `ui/primitives`、`ui/theme` | 不得依赖 features / adapters / app（主题由调用方注入）           |
+| `ui`                        | 不得依赖 `app`（路由契约由 `ui/navigation` 拥有）                |
+| `features`                  | 不得依赖 ui                                                      |
+| `adapters`                  | 不得依赖 features / ui / app                                     |
+| 全局                        | 任何模块级别的循环依赖                                           |
 
 规则写在脚本里，CI 与 `pnpm check` 都会执行。出现分层违规时，输出包含引用位置和原因。
 

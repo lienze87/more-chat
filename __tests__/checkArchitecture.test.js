@@ -45,6 +45,18 @@ it.each([
   expect(result.stderr).toContain('src/features/sample.ts:2 -> src/ui/view.ts');
 });
 
+it('keeps ui independent from the app assembly layer', () => {
+  const result = checkFixture({
+    'src/ui/screen.ts': "import {AppRoot} from '../app/AppRoot';",
+    'src/app/AppRoot.ts': '',
+  });
+
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('发现 1 处层次倒置');
+  expect(result.stderr).toContain('src/ui/screen.ts:1 -> src/app/AppRoot.ts');
+  expect(result.stderr).toContain('ui 不得依赖 app 组装层');
+});
+
 it('ignores import examples in comments and strings', () => {
   const result = checkFixture({
     'src/features/sample.ts': [

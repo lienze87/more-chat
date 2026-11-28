@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import type {RootStackParamList} from '../../app/navigation/types';
+import type {RootStackParamList} from '../navigation/types';
 import type {ChatMessage} from '../../domain/chat/types';
 import {CHAT_SCROLL_BOTTOM_TOLERANCE} from '../../config/appConfig';
 import {
