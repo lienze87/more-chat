@@ -25,10 +25,9 @@ export interface ButtonProps {
   fullWidth?: boolean;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
-  onTouchStart?: () => void;
 }
 
-/** 按钮只有 6 种语义变体 × 3 种尺寸，页面不再自己拼背景色和圆角。 */
+/** 按钮只有 4 种语义变体 × 2 种尺寸，页面不再自己拼背景色和圆角。 */
 export function Button({
   label,
   onPress,
@@ -39,7 +38,6 @@ export function Button({
   fullWidth = false,
   style,
   accessibilityLabel,
-  onTouchStart,
 }: ButtonProps) {
   const theme = useTheme();
   const {colors, radius: r, spacing: s, controlSize} = theme;
@@ -54,7 +52,6 @@ export function Button({
       accessibilityState={{disabled}}
       disabled={disabled}
       onPress={onPress}
-      onTouchStart={onTouchStart}
       style={({pressed}) => [
         styles.base,
         webPointer,

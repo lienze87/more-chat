@@ -21,8 +21,6 @@ export const ICONS = {
   download: 'download-outline',
   extensions: 'extension-puzzle-outline',
   trash: 'trash-outline',
-  send: 'arrow-up',
-  stop: 'stop',
   chevronDown: 'chevron-down',
   chevronUp: 'chevron-up',
   chevronRight: 'chevron-forward',
