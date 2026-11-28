@@ -9,13 +9,12 @@ import {
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {exportTextFile} from '../../adapters/files/exportTextFile';
-import {readWorkspaceFile} from '../../adapters/files/workspaceFiles';
 import type {RootStackParamList} from '../navigation/types';
 import {
   imageMimeType,
-  skillPathParts,
   toLocalFilePath,
 } from '../../features/extensions/filePaths';
+import {readAppFile} from '../../features/extensions/appFiles';
 import {useSkillsStore} from '../../features/extensions/skillsStore';
 import {MarkdownText} from '../components/MarkdownText';
 import {useWorkspaceQuery} from '../hooks/useWorkspaceQuery';
@@ -42,18 +41,11 @@ export function FilePreviewScreen({navigation, route}: Props) {
     if (!target) {
       return undefined;
     }
-    const skill = skillPathParts(target);
-    if (skill) {
-      // 预览由用户主动打开，读取任意已安装的只读 Skill；
-      // 模型工具仍只开放启用的 Skill，鉴权差异留在工具层。
-      const files = useSkillsStore
-        .getState()
-        .skills.find(item => item.name === skill.name)?.files;
-      return files && Object.hasOwn(files, skill.relative)
-        ? files[skill.relative]
-        : undefined;
-    }
-    return readWorkspaceFile(target);
+    // 预览由用户主动打开，读取任意已安装的只读 Skill；
+    // 模型工具仍只开放启用的 Skill，鉴权差异留在工具层。
+    return readAppFile(target, useSkillsStore.getState().skills, {
+      skillAccess: 'all',
+    });
   }, [path]);
   const openFile = useCallback(
     (target: string) => {

@@ -92,6 +92,7 @@ App.tsx
 | 服务端工具能力               | `src/domain/chat/capabilities.ts`                            | 请求构造、`env_info`                   |
 | 引用编号与 Markdown 标记     | `src/domain/chat/citations.ts`                               | `MarkdownText`、`CitationSources`      |
 | 应用内路径规则               | `src/features/extensions/filePaths.ts`                       | 文件工具、预览、Markdown 链接          |
+| 应用内文件读取               | `src/features/extensions/appFiles.ts`                        | 文件工具、文件预览                     |
 | 客户端工具契约（Zod schema） | `src/features/extensions/tools/index.ts`                     | 工具声明、参数校验、脚本白名单         |
 | 持久化结构校验               | `src/adapters/data/repositories/conversationRepository.ts`   | 冷启动恢复                             |
 | 设计令牌                     | `src/ui/theme/tokens.ts`                                     | 全部 UI                                |
@@ -108,7 +109,7 @@ App.tsx
 | G-01 | `ui` 页面依赖 `app/navigation/types`，形成 `ui -> app` 反向边                     | 路由参数契约归 UI，`app` 反向引用                | 低   | typecheck、arch、相关页面手测         | done                                     |
 | G-02 | 视觉模型名单硬编码在 `chatEngine`，且与 `MODEL_PRESETS` 不一致                    | 模型目录成为唯一来源，导出 `modelSupportsImages` | 低   | 新单测 + chatEngine 用例              | done                                     |
 | G-03 | `webSearch`/`readUrl` 到 API 工具与 `env_info` 文案的映射分散两处                 | 服务端工具能力表 + 派生函数                      | 低   | capability 单测 + requestBuilder 用例 | done                                     |
-| G-04 | Skill 文件读取在 `fileTools` 与 `FilePreviewScreen` 各有一份                      | 统一 `readAppFile`，显式区分 enabled/all         | 中   | 新单测 + 预览手测                     | todo                                     |
+| G-04 | Skill 文件读取在 `fileTools` 与 `FilePreviewScreen` 各有一份                      | 统一 `readAppFile`，显式区分 enabled/all         | 中   | 新单测 + 预览手测                     | done                                     |
 | G-05 | `features` 直接依赖 `react-native`，`utils` 直接依赖 Expo                         | 平台能力下沉 `adapters/platform`，加境界规则     | 中   | arch fixture + 全量测试               | todo                                     |
 | G-06 | `ChatScreen` 同时承担滚动、键盘、抽屉、发送编排                                   | 抽出滚动/键盘 hook 与用户气泡组件                | 中   | typecheck + 手测滚动/键盘             | todo                                     |
 | G-07 | 服务端工具文案与动作解释在 `ToolCallCard` / `ToolProcessDisclosure` 重复          | 单一展示派生模块                                 | 低   | 新单测                                | todo                                     |

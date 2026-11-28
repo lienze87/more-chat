@@ -9,7 +9,8 @@ import {FILE_LIMITS, SKILLS_ROOT, WORKSPACE_ROOT} from '../../config/appConfig';
 import {parseToolArguments} from '../../domain/chat/toolCall';
 import type {ClientToolCall} from '../../domain/chat/types';
 import type {FileToolWorkspace} from './fileOperations';
-import {imageMimeType, skillPathParts} from './filePaths';
+import {imageMimeType} from './filePaths';
+import {readAppFile} from './appFiles';
 import {FileToolError} from './fileToolError';
 import type {SkillPackage} from './skillPackage';
 import {
@@ -57,24 +58,13 @@ export function createFileTools(
   skills: SkillPackage[],
   supportsImages: boolean,
 ) {
-  const enabled = new Map(
-    skills.filter(skill => skill.enabled).map(skill => [skill.name, skill]),
-  );
+  const enabledSkills = skills.filter(skill => skill.enabled);
   async function readPath(path: string) {
-    const skill = skillPathParts(path);
-    if (skill) {
-      const files = enabled.get(skill.name)?.files;
-      return files && Object.hasOwn(files, skill.relative)
-        ? files[skill.relative]
-        : undefined;
-    }
-    return path.startsWith(`${WORKSPACE_ROOT}/`)
-      ? fileStorage.read(path)
-      : undefined;
+    return readAppFile(path, skills, {skillAccess: 'enabled'});
   }
   const workspace: FileToolWorkspace = {
     listWorkspacePaths,
-    skillPaths: [...enabled.values()].flatMap(skill =>
+    skillPaths: enabledSkills.flatMap(skill =>
       Object.keys(skill.files).map(
         path => `${SKILLS_ROOT}/${skill.name}/${path}`,
       ),
@@ -181,7 +171,7 @@ export function createFileTools(
 
   return {
     definitions: [...available.values()].map(tool => tool.definition),
-    prompt: fileToolPrompt([...enabled.values()], scriptNames),
+    prompt: fileToolPrompt(enabledSkills, scriptNames),
     has: (name: string) => available.has(name),
     execute: (call: ToolCallInput, signal: AbortSignal) => invoke(call, signal),
   };

@@ -62,3 +62,16 @@ Windows 下 Jest 需显式设置 `NODE_OPTIONS=--experimental-vm-modules`。
 
 **后果**：工具声明顺序与 `env_info` 顺序一致；新增服务端工具只改能力表。`env_info`
 仍保留客户端固定能力（本地文件、JavaScript 执行），因为它们不来自设置开关。
+
+## ADR-0006：Skill 文件读取只有一个入口，访问级别显式传入
+
+**背景**：模型工具只允许读取已启用的 Skill，文件预览允许读取任意已安装的 Skill；
+两处各自解析 `skills/<名称>/<路径>` 并检查 `Object.hasOwn`，路径规则和权限差异都
+可能漂移。
+
+**决定**：`features/extensions/appFiles.ts` 提供 `readSkillFile` 与 `readAppFile`，
+用显式的 `skillAccess: 'enabled' | 'all'` 表达调用方权限；`fileTools` 传 `enabled`，
+`FilePreviewScreen` 传 `all`。`workspace/` 的读取也走同一入口。
+
+**后果**：新增文件来源（例如未来只读资源目录）只需改 `readAppFile`。`workspaceFiles`
+只保留工作区列表，不再重复提供读取函数。
