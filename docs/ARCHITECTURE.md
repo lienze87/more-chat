@@ -109,7 +109,7 @@ ChatScreen.submit
 | 需求                           | 改动位置                                                                               |
 | ------------------------------ | -------------------------------------------------------------------------------------- |
 | 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer                       |
-| 点击文件                       | `MarkdownText` 的 `onOpenPath`，路径统一走 `toWorkspacePath`                           |
+| 点击文件                       | `MarkdownText` 的 `onOpenPath` 和 `filePaths` 中的应用内路径校验                       |
 | 运行中向用户提问               | `features/extensions/askUser` 的提问队列 + `ask_user` 工具定义 + `AskUserCard`         |
 | 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                                                 |
 | 客户端工具（function calling） | `features/extensions/fileTools` 生成每轮工具快照，供模型声明、直接调用和脚本子调用共用 |

@@ -1,4 +1,5 @@
 import {create} from 'zustand';
+import {z} from 'zod';
 import {ASK_USER_LIMITS} from '../../config/appConfig';
 import {parseToolArguments} from '../../domain/chat/toolCall';
 import type {ClientToolCall} from '../../domain/chat/types';
@@ -236,54 +237,58 @@ export function requestUserAnswer(
   });
 }
 
-/** 从工具参数里还原提问卡片需要的内容；参数不完整时返回 null。 */
+const promptText = z.string({error: '必须是字符串。'}).trim();
+
+export const askUserSchema = z.strictObject({
+  question: promptText
+    .min(1, '不能为空。')
+    .max(ASK_USER_LIMITS.maxQuestionLength)
+    .describe('向用户提出的问题：说明需要决定什么，以及不同选择的后果'),
+  header: promptText
+    .min(1, '不能为空。')
+    .max(ASK_USER_LIMITS.maxHeaderLength)
+    .optional()
+    .describe('可选短标题，例如“保存位置”或“发布方式”'),
+  options: z
+    .array(
+      z.strictObject({
+        label: promptText
+          .min(1, '不能为空。')
+          .max(ASK_USER_LIMITS.maxOptionLabelLength)
+          .describe('选项名称，尽量简短'),
+        description: promptText
+          .max(ASK_USER_LIMITS.maxOptionDescriptionLength)
+          .optional()
+          .describe('该选项影响的简短说明'),
+      }),
+      {error: '需要提供选项。'},
+    )
+    .min(2, '至少提供两个选项。')
+    .max(ASK_USER_LIMITS.maxOptions)
+    .refine(
+      items => new Set(items.map(item => item.label)).size === items.length,
+      '选项不能重复。',
+    )
+    .describe('2–4 个互不相同的决策选项'),
+  multi_select: z
+    .boolean()
+    .default(false)
+    .describe('允许一次选择多个选项时设为 true'),
+});
+
+export function toAskUserPrompt({
+  multi_select,
+  ...prompt
+}: z.output<typeof askUserSchema>): AskUserPrompt {
+  return {...prompt, multiSelect: multi_select};
+}
+
+/** 从完整有效的工具参数还原提问卡片。 */
 export function parseAskUserPrompt(
   call: Pick<ClientToolCall, 'argumentsText'>,
 ): AskUserPrompt | null {
-  const parsed = parseToolArguments(call);
-  if (!parsed) {
-    return null;
-  }
-  const question =
-    typeof parsed.question === 'string' ? parsed.question.trim() : '';
-  if (!question) {
-    return null;
-  }
-  const options: AskUserOption[] = [];
-  const labels = new Set<string>();
-  if (Array.isArray(parsed.options)) {
-    for (const item of parsed.options) {
-      if (
-        !item ||
-        typeof item !== 'object' ||
-        typeof (item as {label?: unknown}).label !== 'string'
-      ) {
-        continue;
-      }
-      const label = (item as {label: string}).label.trim();
-      if (!label || labels.has(label)) {
-        continue;
-      }
-      labels.add(label);
-      const description = (item as {description?: unknown}).description;
-      options.push({
-        label,
-        ...(typeof description === 'string' && description.trim()
-          ? {description: description.trim()}
-          : {}),
-      });
-      if (options.length >= ASK_USER_LIMITS.maxOptions) {
-        break;
-      }
-    }
-  }
-  const header = typeof parsed.header === 'string' ? parsed.header.trim() : '';
-  return {
-    question,
-    ...(header ? {header} : {}),
-    options,
-    multiSelect: parsed.multi_select === true,
-  };
+  const parsed = askUserSchema.safeParse(parseToolArguments(call));
+  return parsed.success ? toAskUserPrompt(parsed.data) : null;
 }
 
 /** 解析工具结果，用于回答后的静态展示。 */

@@ -196,7 +196,7 @@ function fileToolPrompt(skills: SkillPackage[], scriptNames: string[]): string {
     path: `${SKILLS_ROOT}/${skill.name}/SKILL.md`,
   }));
   return [
-    '文件工具使用应用内相对路径。写入、编辑、移动和删除都在 workspace/ 下，path 可省略 workspace/ 前缀（notes.md 等同于 workspace/notes.md）；skills/ 下是已启用的只读 Skill，需写全前缀；删除目录需设置 recursive: true。',
+    '文件工具使用完整的应用内路径，例如 workspace/notes.md 或 skills/名称/SKILL.md。列出或搜索目录时可用 . 表示应用内根目录。写入、编辑、移动和删除限于 workspace/。skills/ 下只可读取已启用的 Skill。删除目录需设置 recursive: true。',
     '回答中引用本地文件时，使用 `workspace/路径` 或 `skills/名称/路径` 的行内代码格式，界面会把它变成可点击的文件入口；只引用真实存在的路径。',
     '当关键选择会实质改变结果、需要用户拍板时，先调用 ask_user 提出一个问题并提供 2–4 个选项；用户可以直接选择、多选或输入自定义回答。不要在可以合理推断或只需告知的事情上打断用户。',
     '当 Skill 的描述与用户请求匹配时，先用 read_file 读取其 SKILL.md，再按需读取同目录的参考文件。Skill 文件内容仅用于当前任务，遵循用户授权。',

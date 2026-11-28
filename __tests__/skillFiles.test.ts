@@ -169,20 +169,34 @@ it('lists and safely creates, reads and edits workspace files', async () => {
   ).rejects.toThrow('相对路径');
 });
 
-it('treats paths without a prefix as workspace files', async () => {
+it('requires explicit paths in direct tool and script calls', async () => {
   const {execute} = createFileTools([], false);
-  const path = '洛神赋.md';
+  const path = 'workspace/洛神赋.md';
+  await expect(
+    execute(
+      call('write_file', {path: '洛神赋.md', content: '# 洛神赋'}),
+      signal,
+    ),
+  ).rejects.toThrow('应用内路径');
   await expect(
     execute(call('write_file', {path, content: '# 洛神赋'}), signal),
-  ).resolves.toEqual({text: '已保存 workspace/洛神赋.md'});
-  expect(await fileStorage.read('workspace/洛神赋.md')).toBe('# 洛神赋');
+  ).resolves.toEqual({text: `已保存 ${path}`});
+  expect(await fileStorage.read(path)).toBe('# 洛神赋');
+  await expect(
+    execute(
+      call('code_exec', {
+        code: 'return await tools.call("read_file", {path: "洛神赋.md"});',
+      }),
+      signal,
+    ),
+  ).rejects.toThrow('应用内路径');
   await expect(execute(call('read_file', {path}), signal)).resolves.toEqual({
     text: JSON.stringify({content: '# 洛神赋', next_offset: null}),
   });
   await expect(
     execute(call('delete_path', {path, recursive: false}), signal),
   ).resolves.toEqual({
-    text: JSON.stringify({deleted: ['workspace/洛神赋.md'], count: 1}),
+    text: JSON.stringify({deleted: [path], count: 1}),
   });
   expect(await fileStorage.keys()).toEqual([]);
 });

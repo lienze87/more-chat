@@ -15,14 +15,17 @@ import {
   citationNumberFromHref,
   isCitationHref,
 } from '../../domain/chat/citations';
-import {toWorkspacePath} from '../../features/extensions/filePaths';
+import {
+  localFilePathFromHref,
+  toLocalFileLink,
+} from '../../features/extensions/filePaths';
 import {useTheme} from '../theme/ThemeProvider';
 import type {Theme} from '../theme/tokens';
 
 interface MarkdownTextProps {
   content: string;
   annotations?: CitationAnnotation[];
-  /** 点击 `workspace/…`、`skills/…` 或裸文件名时打开应用内文件。 */
+  /** 点击带完整根目录的应用内文件路径时打开预览。 */
   onOpenPath?: (path: string) => void;
 }
 
@@ -50,6 +53,9 @@ const openUrl = (url: string) => {
   Linking.openURL(url).catch(() => undefined);
 };
 
+const isExternalHref = (href: string) =>
+  /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href);
+
 const scrollCode =
   (render: RenderFunction): RenderFunction =>
   (node, children, parents, styles, inheritedStyles) => (
@@ -67,7 +73,7 @@ const createRules = (
   code_block: scrollCode(renderRules.code_block!),
   fence: scrollCode(renderRules.fence!),
   code_inline: (node, children, parents, styles) => {
-    const path = onOpenPath ? toWorkspacePath(node.content ?? '') : null;
+    const path = onOpenPath ? toLocalFileLink(node.content ?? '') : null;
     if (path && onOpenPath) {
       return (
         <Text
@@ -121,7 +127,7 @@ const createRules = (
         </Text>
       );
     }
-    const path = onOpenPath && href ? toWorkspacePath(href) : null;
+    const path = onOpenPath && href ? localFilePathFromHref(href) : null;
     if (path && onOpenPath) {
       return (
         <Text
@@ -139,6 +145,9 @@ const createRules = (
         </Text>
       );
     }
+    if (!href || !isExternalHref(href)) {
+      return <Text key={node.key}>{children}</Text>;
+    }
     return (
       <Text
         key={node.key}
@@ -148,12 +157,22 @@ const createRules = (
           color: citationColor,
           textDecorationLine: 'underline',
         }}
-        onPress={() => href && openUrl(href)}
+        onPress={() => openUrl(href)}
       >
         {children}
       </Text>
     );
   },
+  blocklink: (node, children, parents, styles) =>
+    renderRules.blocklink!(node, children, parents, styles, (href: string) => {
+      const path = onOpenPath ? localFilePathFromHref(href) : null;
+      if (path && onOpenPath) {
+        onOpenPath(path);
+      } else if (isExternalHref(href)) {
+        openUrl(href);
+      }
+      return false;
+    }),
 });
 
 export const MarkdownText = memo(function MarkdownText({

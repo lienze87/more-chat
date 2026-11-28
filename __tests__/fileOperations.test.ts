@@ -248,30 +248,34 @@ it('enforces a byte budget on a single save', async () => {
   ).resolves.toEqual({path: 'workspace/a.md', changed: true, bytes: 3});
 });
 
-it('treats paths without the workspace prefix as workspace files', async () => {
+it('uses explicit roots for files and directories', async () => {
   const {workspace, files} = createWorkspace({
     'workspace/notes.md': '笔记',
     'workspace/dir/a.md': 'a',
   });
   await expect(
-    readTextFile({path: 'notes.md', offset: 0}, workspace, signal),
+    readTextFile({path: 'workspace/notes.md', offset: 0}, workspace, signal),
   ).resolves.toEqual({content: '笔记', next_offset: null});
   await expect(
-    listDirectory({path: 'dir', offset: 0}, workspace),
+    listDirectory({path: 'workspace/dir/', offset: 0}, workspace),
   ).resolves.toMatchObject({entries: [{name: 'a.md', type: 'file', size: 1}]});
   await expect(
     findFiles({path: '.', pattern: '**/a.md', offset: 0}, workspace),
   ).resolves.toMatchObject({paths: ['workspace/dir/a.md']});
 
   await writeTextFile(
-    {path: '洛神赋.md', content: '# 洛神赋', overwrite: false},
+    {path: 'workspace/洛神赋.md', content: '# 洛神赋', overwrite: false},
     workspace,
     signal,
   );
   expect(files.get('workspace/洛神赋.md')).toBe('# 洛神赋');
   await expect(
     editTextFile(
-      {path: '洛神赋.md', old_text: '# 洛神赋', new_text: '# 洛神赋 并序'},
+      {
+        path: 'workspace/洛神赋.md',
+        old_text: '# 洛神赋',
+        new_text: '# 洛神赋 并序',
+      },
       workspace,
       signal,
     ),
@@ -282,7 +286,11 @@ it('treats paths without the workspace prefix as workspace files', async () => {
   });
   await expect(
     movePath(
-      {from: '洛神赋.md', to: 'drafts/洛神赋.md', overwrite: false},
+      {
+        from: 'workspace/洛神赋.md',
+        to: 'workspace/drafts/洛神赋.md',
+        overwrite: false,
+      },
       workspace,
       signal,
     ),
@@ -291,7 +299,11 @@ it('treats paths without the workspace prefix as workspace files', async () => {
     to: 'workspace/drafts/洛神赋.md',
   });
   await expect(
-    deletePath({path: 'drafts/洛神赋.md', recursive: false}, workspace, signal),
+    deletePath(
+      {path: 'workspace/drafts/洛神赋.md', recursive: false},
+      workspace,
+      signal,
+    ),
   ).resolves.toEqual({deleted: ['workspace/drafts/洛神赋.md'], count: 1});
   await expect(
     writeTextFile(
@@ -300,6 +312,37 @@ it('treats paths without the workspace prefix as workspace files', async () => {
       signal,
     ),
   ).rejects.toThrow('只能写入');
+});
+
+it('rejects bare paths for file operations and directory searches', async () => {
+  const {workspace} = createWorkspace({
+    'workspace/notes.md': '内容',
+    'workspace/reports/today.md': '今天',
+  });
+  const operations = [
+    readTextFile({path: 'notes.md', offset: 0}, workspace, signal),
+    writeTextFile(
+      {path: 'reports/new.md', content: '', overwrite: false},
+      workspace,
+      signal,
+    ),
+    movePath(
+      {from: 'workspace/notes.md', to: 'reports/notes.md', overwrite: false},
+      workspace,
+      signal,
+    ),
+    deletePath({path: 'reports', recursive: true}, workspace, signal),
+    listDirectory({path: 'reports', offset: 0}, workspace),
+    findFiles(
+      {path: './workspace/reports', pattern: '**', offset: 0},
+      workspace,
+    ),
+  ];
+  await Promise.all(
+    operations.map(operation =>
+      expect(operation).rejects.toThrow('应用内路径'),
+    ),
+  );
 });
 
 it('reads the last lines with tail_lines', async () => {

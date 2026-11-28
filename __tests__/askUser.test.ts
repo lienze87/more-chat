@@ -109,6 +109,23 @@ describe('ask_user', () => {
     expect(useAskUserStore.getState().pending).toEqual({});
   });
 
+  it.each([
+    {...question, question: '   '},
+    {...question, header: '   '},
+    {...question, options: [{label: '   '}, {label: '可用选项'}]},
+  ])(
+    'rejects whitespace-only prompt fields before touching the queue',
+    async args => {
+      const {execute} = createFileTools([], false);
+      const input = call('ask_user', args);
+      await expect(
+        execute(input, new AbortController().signal),
+      ).rejects.toThrow('不能为空');
+      expect(useAskUserStore.getState().pending).toEqual({});
+      expect(parseAskUserPrompt(input)).toBeNull();
+    },
+  );
+
   it('rejects duplicate option labels before touching the queue', async () => {
     const {execute} = createFileTools([], false);
     await expect(
@@ -249,12 +266,7 @@ describe('ask_user', () => {
       parseAskUserPrompt(
         call('ask_user', {
           question: ' 选一个 ',
-          options: [
-            {label: 'A', description: ' 第一个 '},
-            {label: ''},
-            {label: 'B'},
-          ],
-          multi_select: 1,
+          options: [{label: ' A ', description: ' 第一个 '}, {label: 'B'}],
         }),
       ),
     ).toEqual({
@@ -263,7 +275,6 @@ describe('ask_user', () => {
       multiSelect: false,
     });
     expect(parseAskUserPrompt(call('ask_user', {}))).toBeNull();
-    // 历史数据里可能出现重复选项，渲染时按首次出现保留。
     expect(
       parseAskUserPrompt(
         call('ask_user', {
@@ -271,11 +282,7 @@ describe('ask_user', () => {
           options: [{label: 'A'}, {label: 'A'}, {label: 'B'}],
         }),
       ),
-    ).toEqual({
-      question: '选一个',
-      options: [{label: 'A'}, {label: 'B'}],
-      multiSelect: false,
-    });
+    ).toBeNull();
     expect(
       parseAskUserResult(
         JSON.stringify({question: '选一个', selected: ['A'], custom: null}),

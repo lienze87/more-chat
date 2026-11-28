@@ -6,7 +6,7 @@ import {
   JAVASCRIPT_LIMITS,
   WRITE_TOOL_INPUT_LIMIT,
 } from '../../../config/appConfig';
-import {requestUserAnswer} from '../askUser';
+import {askUserSchema, requestUserAnswer, toAskUserPrompt} from '../askUser';
 import {
   deletePath,
   editTextFile,
@@ -48,15 +48,18 @@ export interface FileToolDefinition<Schema extends z.ZodType = z.ZodType> {
 }
 
 const stringParam = z.string({error: '必须是字符串。'});
-const pathParam = stringParam
-  .min(1, '不能为空。')
-  .describe('相对路径，可省略 workspace/ 前缀，例如 notes.md');
-const skillPathParam = pathParam.describe(
-  '相对路径，可省略 workspace/ 前缀，例如 notes.md；Skill 文件需写全 skills/<名称>/文件名',
+const nonEmptyPath = stringParam.min(1, '不能为空。');
+const pathParam = nonEmptyPath.describe(
+  '以 workspace/ 开头的路径，例如 workspace/notes.md',
 );
-const directory = pathParam
+const skillPathParam = nonEmptyPath.describe(
+  '完整应用内路径，例如 workspace/notes.md 或 skills/<名称>/文件名',
+);
+const directory = nonEmptyPath
   .default('.')
-  .describe('目录的相对路径，默认是应用内根目录（.），可省略 workspace/ 前缀');
+  .describe(
+    '应用内目录，例如 workspace/、workspace/notes 或 skills/<名称>/。默认是应用内根目录（.）',
+  );
 const offset = z
   .int({error: '必须是非负整数。'})
   .nonnegative({error: '必须是非负整数。'})
@@ -78,7 +81,7 @@ async function executeListDirectory(
 }
 
 const listDirectoryDefinition = {
-  description: `列出目录的直接子项，返回 {entries, total, next_offset}。path 默认是应用内根目录，省略 workspace/ 前缀时按 workspace/ 解析。文件项含 size（字节）和 mtime（ISO 时间，Web 端无 mtime）。每页最多 ${FILE_LIMITS.directoryPageItems} 项。`,
+  description: `列出目录的直接子项，返回 {entries, total, next_offset}。path 默认是应用内根目录（.）。文件项含 size（字节）和 mtime（ISO 时间，Web 端无 mtime）。每页最多 ${FILE_LIMITS.directoryPageItems} 项。`,
   parameters: listDirectorySchema,
   execute: executeListDirectory,
   programmatic: true,
@@ -94,7 +97,7 @@ async function executeFindFiles(
 }
 
 const findFilesDefinition = {
-  description: `递归查找匹配路径模式的本地文件，返回 {paths, total, next_offset}，每页最多 ${FILE_LIMITS.directoryPageItems} 项。path 默认是应用内根目录，省略 workspace/ 前缀时按 workspace/ 解析；目录不存在时报错。`,
+  description: `递归查找匹配路径模式的本地文件，返回 {paths, total, next_offset}，每页最多 ${FILE_LIMITS.directoryPageItems} 项。path 默认是应用内根目录（.）。目录不存在时报错。`,
   parameters: findFilesSchema,
   execute: executeFindFiles,
   programmatic: true,
@@ -114,7 +117,7 @@ async function executeDeletePath(
 
 const deletePathDefinition = {
   description:
-    '删除 workspace/ 下的文件或目录，返回 {deleted, count}。path 可省略 workspace/ 前缀。删除目录需设置 recursive: true；skills/ 只读。',
+    '删除 workspace/ 下的文件或目录，返回 {deleted, count}。删除目录需设置 recursive: true；skills/ 只读。',
   parameters: deletePathSchema,
   execute: executeDeletePath,
   programmatic: true,
@@ -135,7 +138,7 @@ async function executeMovePath(
 
 const movePathDefinition = {
   description:
-    '移动或重命名 workspace/ 下的文本文件，返回 {from, to}。from、to 可省略 workspace/ 前缀。目标已存在需设置 overwrite；skills/ 只读。',
+    '移动或重命名 workspace/ 下的文本文件，返回 {from, to}。目标已存在需设置 overwrite；skills/ 只读。',
   parameters: movePathSchema,
   execute: executeMovePath,
   programmatic: true,
@@ -177,7 +180,7 @@ async function executeSearchText(
 
 const searchTextDefinition = {
   description:
-    '递归搜索 UTF-8 文本文件中的字面量，默认区分大小写（case_sensitive: false 可忽略）。path 省略 workspace/ 前缀时按 workspace/ 解析。返回 {matches: [{path, line, text}], next_cursor}。即使本页没有命中，只要 next_cursor 非 null 就可继续。',
+    '递归搜索 UTF-8 文本文件中的字面量，默认区分大小写（case_sensitive: false 可忽略）。path 默认是应用内根目录（.）。返回 {matches: [{path, line, text}], next_cursor}。即使本页没有命中，只要 next_cursor 非 null 就可继续。',
   parameters: searchTextSchema,
   execute: executeSearchText,
   programmatic: true,
@@ -204,7 +207,7 @@ async function executeReadFile(
 }
 
 const readFileDefinition = {
-  description: `按 UTF-16 字符偏移分页读取 UTF-8 文本，每页最多 ${FILE_LIMITS.textPageChars} 字符；也可用 tail_lines 读取末尾 N 行。path 省略 workspace/ 前缀时按 workspace/ 解析，Skill 文件需写全 skills/<名称>/文件名。`,
+  description: `按 UTF-16 字符偏移分页读取 UTF-8 文本，每页最多 ${FILE_LIMITS.textPageChars} 字符；也可用 tail_lines 读取末尾 N 行。请使用 workspace/ 或 skills/<名称>/ 开头的完整路径。`,
   parameters: readFileSchema,
   execute: executeReadFile,
   programmatic: true,
@@ -250,7 +253,7 @@ async function executeWriteFile(
 
 const writeFileDefinition = {
   description:
-    '在 workspace/ 创建 UTF-8 文本文件，path 可写成 notes.md 或 workspace/notes.md。覆盖已有文件需设置 overwrite。',
+    '在 workspace/ 创建 UTF-8 文本文件，例如 workspace/notes.md。覆盖已有文件需设置 overwrite。',
   parameters: writeFileSchema,
   execute: executeWriteFile,
   programmatic: true,
@@ -275,7 +278,7 @@ async function executeEditFile(
 
 const editFileDefinition = {
   description:
-    '在 workspace/ 的 UTF-8 文本文件中替换 old_text，返回 {path, changed, replaced}。path 可省略 workspace/ 前缀。默认要求唯一匹配；all: true 替换全部。',
+    '在 workspace/ 的 UTF-8 文本文件中替换 old_text，返回 {path, changed, replaced}。默认要求唯一匹配；all: true 替换全部。',
   parameters: editFileSchema,
   execute: executeEditFile,
 } satisfies FileToolDefinition<typeof editFileSchema>;
@@ -295,7 +298,7 @@ async function executeReadImage(
 
 const readImageDefinition = {
   description:
-    '读取 PNG、JPEG、GIF 或 WebP 图片并交给视觉模型。path 省略 workspace/ 前缀时按 workspace/ 解析。',
+    '读取 PNG、JPEG、GIF 或 WebP 图片并交给视觉模型。请使用 workspace/ 或 skills/<名称>/ 开头的完整路径。',
   parameters: readImageSchema,
   execute: executeReadImage,
   requiresImages: true,
@@ -319,58 +322,11 @@ const codeExecDefinition = {
   execute: executeCode,
 } satisfies FileToolDefinition<typeof codeExecSchema>;
 
-const askUserSchema = z.strictObject({
-  question: stringParam
-    .min(1, '不能为空。')
-    .max(ASK_USER_LIMITS.maxQuestionLength)
-    .describe('向用户提出的问题：说明需要决定什么，以及不同选择的后果'),
-  header: stringParam
-    .min(1, '不能为空。')
-    .max(ASK_USER_LIMITS.maxHeaderLength)
-    .optional()
-    .describe('可选短标题，例如“保存位置”或“发布方式”'),
-  options: z
-    .array(
-      z.strictObject({
-        label: stringParam
-          .min(1, '不能为空。')
-          .max(ASK_USER_LIMITS.maxOptionLabelLength)
-          .describe('选项名称，尽量简短'),
-        description: stringParam
-          .max(ASK_USER_LIMITS.maxOptionDescriptionLength)
-          .optional()
-          .describe('该选项影响的简短说明'),
-      }),
-      {error: '需要提供选项。'},
-    )
-    .min(2, '至少提供两个选项。')
-    .max(ASK_USER_LIMITS.maxOptions)
-    .refine(
-      items =>
-        new Set(items.map(item => item.label.trim())).size === items.length,
-      '选项不能重复。',
-    )
-    .describe('2–4 个互不相同的决策选项'),
-  multi_select: z
-    .boolean()
-    .default(false)
-    .describe('允许一次选择多个选项时设为 true'),
-});
-
 async function executeAskUser(
   args: z.output<typeof askUserSchema>,
   {callId, signal}: FileToolContext,
 ): Promise<FileToolResult> {
-  const answer = await requestUserAnswer(
-    callId,
-    {
-      question: args.question,
-      ...(args.header ? {header: args.header} : {}),
-      options: args.options,
-      multiSelect: args.multi_select,
-    },
-    signal,
-  );
+  const answer = await requestUserAnswer(callId, toAskUserPrompt(args), signal);
   return {
     text: JSON.stringify({
       question: args.question,
