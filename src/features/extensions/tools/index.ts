@@ -1,10 +1,12 @@
 import {z} from 'zod';
 import {
+  ASK_USER_LIMITS,
   FILE_LIMITS,
   FILE_SEARCH_LIMITS,
   JAVASCRIPT_LIMITS,
   WRITE_TOOL_INPUT_LIMIT,
 } from '../../../config/appConfig';
+import {requestUserAnswer} from '../askUser';
 import {
   deletePath,
   editTextFile,
@@ -317,6 +319,79 @@ const codeExecDefinition = {
   execute: executeCode,
 } satisfies FileToolDefinition<typeof codeExecSchema>;
 
+const askUserSchema = z.strictObject({
+  question: stringParam
+    .min(1, '不能为空。')
+    .max(ASK_USER_LIMITS.maxQuestionLength)
+    .describe('向用户提出的问题：说明需要决定什么，以及不同选择的后果'),
+  header: stringParam
+    .min(1, '不能为空。')
+    .max(ASK_USER_LIMITS.maxHeaderLength)
+    .optional()
+    .describe('可选短标题，例如“保存位置”或“发布方式”'),
+  options: z
+    .array(
+      z.strictObject({
+        label: stringParam
+          .min(1, '不能为空。')
+          .max(ASK_USER_LIMITS.maxOptionLabelLength)
+          .describe('选项名称，尽量简短'),
+        description: stringParam
+          .max(ASK_USER_LIMITS.maxOptionDescriptionLength)
+          .optional()
+          .describe('该选项影响的简短说明'),
+      }),
+      {error: '需要提供选项。'},
+    )
+    .min(2, '至少提供两个选项。')
+    .max(ASK_USER_LIMITS.maxOptions)
+    .refine(
+      items =>
+        new Set(items.map(item => item.label.trim())).size === items.length,
+      '选项不能重复。',
+    )
+    .describe('2–4 个互不相同的决策选项'),
+  multi_select: z
+    .boolean()
+    .default(false)
+    .describe('允许一次选择多个选项时设为 true'),
+});
+
+async function executeAskUser(
+  args: z.output<typeof askUserSchema>,
+  {callId, signal}: FileToolContext,
+): Promise<FileToolResult> {
+  const answer = await requestUserAnswer(
+    callId,
+    {
+      question: args.question,
+      ...(args.header ? {header: args.header} : {}),
+      options: args.options,
+      multiSelect: args.multi_select,
+    },
+    signal,
+  );
+  return {
+    text: JSON.stringify({
+      question: args.question,
+      selected: answer.selected,
+      custom: answer.custom ?? null,
+      ...(answer.timedOut
+        ? {
+            timed_out: true,
+            message: `用户未在 ${ASK_USER_LIMITS.timeoutMs / 1000} 秒内选择，请自行判断后续行动。`,
+          }
+        : {}),
+    }),
+  };
+}
+
+const askUserDefinition = {
+  description: `当关键选择会实质改变结果、需要用户拍板时，向用户提问并提供 2–4 个选项。应用会暂停本轮，直到用户选择、输入自定义回答或停止生成；结果以 JSON 返回。若用户在 ${ASK_USER_LIMITS.timeoutMs / 1000} 秒内没有确认（聚焦自定义输入框期间暂停计时），应用会自动继续并返回 {timed_out: true, selected: []}，此时请自行判断后续行动。不要为可以合理推断的小事提问，也不要用它征求确认已明确的要求。`,
+  parameters: askUserSchema,
+  execute: executeAskUser,
+} satisfies FileToolDefinition<typeof askUserSchema>;
+
 export const fileToolDefinitions = {
   list_dir: listDirectoryDefinition,
   find_files: findFilesDefinition,
@@ -328,4 +403,5 @@ export const fileToolDefinitions = {
   delete_path: deletePathDefinition,
   move_path: movePathDefinition,
   code_exec: codeExecDefinition,
+  ask_user: askUserDefinition,
 } satisfies Record<string, FileToolDefinition>;

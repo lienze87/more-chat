@@ -52,6 +52,8 @@ AssistantMessage {
 
 `segments` 保留模型输出的真实顺序：思考 → 搜索 → 思考 → 阅读网页 → 回答。UI 把相邻 thinking 合并为可折叠块，tool 渲染为卡片，text 渲染为 Markdown。
 
+`ask_user` 调用会暂停运行，等待用户选择或自定义回答后再继续；自定义输入框聚焦期间暂停计时，失焦、离开页面或应用退到后台时恢复剩余计时，60 秒内未确认则按“未选择”返回并继续运行。
+
 用户消息额外保存两个发送时快照：`reminder`（官方 `latest_reminder` 内容）与 `envInfo`（`<env_info>` 块）。请求构造时 `composeUserContent` 用 `<user_query>` 包裹正文，历史回放沿用当时的快照，而不是用当前设置重新计算。
 
 ## 流式链路
@@ -108,6 +110,7 @@ ChatScreen.submit
 | ------------------------------ | -------------------------------------------------------------------------------------- |
 | 文件上传 / 图片                | `api/types.ts` 的 content 联合类型 + `requestBuilder` + Composer                       |
 | 点击文件                       | `MarkdownText` 的 `onOpenPath`，路径统一走 `toWorkspacePath`                           |
+| 运行中向用户提问               | `features/extensions/askUser` 的提问队列 + `ask_user` 工具定义 + `AskUserCard`         |
 | 语音输入 / TTS                 | 新增 `api/audio` + Composer 麦克风按钮                                                 |
 | 客户端工具（function calling） | `features/extensions/fileTools` 生成每轮工具快照，供模型声明、直接调用和脚本子调用共用 |
 | 会话分片存储                   | 替换 `conversationRepository`，store 接口不变                                          |

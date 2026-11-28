@@ -69,6 +69,17 @@ export const FILE_SEARCH_LIMITS = {
   previewCharsBeforeMatch: 60,
 } as const;
 
+export const ASK_USER_LIMITS = {
+  maxQuestionLength: 600,
+  maxHeaderLength: 24,
+  maxOptions: 4,
+  maxOptionLabelLength: 80,
+  maxOptionDescriptionLength: 240,
+  maxCustomAnswerLength: 2_000,
+  // 用户未确认时自动返回“未选择”，让模型继续推进，而不是卡住整轮对话。
+  timeoutMs: 60_000,
+} as const;
+
 const SKILL_FILE_BYTES = 1024 * 1024;
 export const SKILL_LIMITS = {
   maxFileBytes: SKILL_FILE_BYTES,

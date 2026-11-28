@@ -24,6 +24,7 @@ export interface TextFieldProps {
   autoCapitalize?: TextInputProps['autoCapitalize'];
   autoFocus?: boolean;
   maxLength?: number;
+  onFocus?: () => void;
   onBlur?: () => void;
   onSubmitEditing?: TextInputProps['onSubmitEditing'];
   submitOnReturn?: boolean;
@@ -48,6 +49,7 @@ export function TextField({
   autoCapitalize = 'none',
   autoFocus,
   maxLength,
+  onFocus,
   onBlur,
   onSubmitEditing,
   submitOnReturn,
@@ -86,7 +88,10 @@ export function TextField({
         autoCorrect={false}
         autoFocus={autoFocus}
         maxLength={maxLength}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          onFocus?.();
+        }}
         onBlur={() => {
           setFocused(false);
           onBlur?.();
