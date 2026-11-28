@@ -9,18 +9,24 @@ import {IconButton} from './IconButton';
 export interface ScreenProps {
   children: React.ReactNode;
   edges?: ('top' | 'bottom' | 'left' | 'right')[];
+  /** 页面底色；默认主题背景，聊天页使用与头部一致的表面色。 */
+  background?: 'background' | 'surface';
 }
 
 const DEFAULT_EDGES: NonNullable<ScreenProps['edges']> = ['top'];
 
 /** 页面根容器：统一背景色与安全区。 */
-export function Screen({children, edges = DEFAULT_EDGES}: ScreenProps) {
+export function Screen({
+  children,
+  edges = DEFAULT_EDGES,
+  background = 'background',
+}: ScreenProps) {
   const theme = useTheme();
   const {top} = useSafeAreaInsets();
   return (
     <SafeAreaView
       edges={edges}
-      style={[styles.flex, {backgroundColor: theme.colors.background}]}
+      style={[styles.flex, {backgroundColor: theme.colors[background]}]}
     >
       {top > 0 && edges.includes('top') ? (
         <View
@@ -78,7 +84,7 @@ export function PageHeader({
         styles.header,
         {
           paddingHorizontal: spacing.xs,
-          paddingVertical: spacing.sm,
+          paddingVertical: spacing.xs,
           borderBottomColor: colors.border,
           borderBottomWidth: StyleSheet.hairlineWidth,
           backgroundColor: colors.surface,

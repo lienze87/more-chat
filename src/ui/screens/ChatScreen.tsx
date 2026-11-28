@@ -352,7 +352,7 @@ export function ChatScreen({navigation}: Props) {
 
   if (!conversation) {
     return (
-      <Screen edges={['top']}>
+      <Screen edges={['top']} background="surface">
         {header}
         <View style={styles.emptyWrap}>
           <EmptyState
@@ -369,7 +369,7 @@ export function ChatScreen({navigation}: Props) {
   const showWelcome = messages.length === 0;
 
   return (
-    <Screen edges={['top']}>
+    <Screen edges={['top']} background="surface">
       {header}
 
       {/*
