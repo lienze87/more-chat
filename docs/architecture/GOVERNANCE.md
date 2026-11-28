@@ -125,6 +125,7 @@ App.tsx
 | G-19 | `formatTokenCount`、`max_tokens`、`FileStat` 导出无生产调用方                     | 删除未使用表面，去掉不必要导出                   | 低   | typecheck + knip                      | done                                     |
 | G-20 | `chatStore` 每个变更器重复 map/touch/persist，未知目标也会写盘                    | 统一 updateConversation，只在真实变化时持久化    | 中   | chatStore 单测                        | done                                     |
 | G-21 | Button 暴露无人使用的 `onTouchStart`，注释与真实变体/尺寸不符；图标表有死映射     | 删除未使用 prop/图标，修正注释                   | 低   | typecheck + lint                      | done                                     |
+| G-22 | `domain` 两条分层规则重复命中同一平台导入，报错重复且难读                         | 合并为单条叶子规则并补 fixture                   | 低   | 门禁自测 + arch                       | done                                     |
 | G-10 | 架构门禁保留未实现的 `runtime` 规则                                               | 删除规划规则；引入时再加                         | 低   | arch + 门禁自测                       | done                                     |
 | G-11 | 持久化结构校验与 `domain` 类型是两套手写定义                                      | 评估用同一 schema 派生，或明确校验层职责         | 高   | 兼容性样本 + 全量测试                 | deferred（需评估旧数据兼容策略）         |
 | G-12 | 日志只有零散 `console.warn`，无统一观测出口                                       | 评估是否引入最小 logger；客户端暂无远端采集需求  | 低   | 设计确认                              | deferred（无明确产品需求，避免新增抽象） |

@@ -119,12 +119,8 @@ const RULES = [
   {
     from: /^src\/domain\//,
     to: /^(?!src\/domain\/)/,
-    reason: 'domain 必须是纯模型层，只能依赖自身',
-  },
-  {
-    from: /^src\/domain\//,
-    to: /^(react$|react-native$|zustand$|@react-native-async-storage\/)/,
-    reason: 'domain 不得依赖 React / RN / zustand / 存储实现',
+    reason:
+      'domain 必须是纯模型层，只能依赖自身（禁止 React / RN / zustand / 存储实现）',
   },
   {
     from: /^src\/config\//,

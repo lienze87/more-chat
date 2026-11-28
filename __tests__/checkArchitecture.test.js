@@ -45,6 +45,16 @@ it.each([
   expect(result.stderr).toContain('src/features/sample.ts:2 -> src/ui/view.ts');
 });
 
+it('treats domain as a leaf, including platform packages', () => {
+  const result = checkFixture({
+    'src/domain/model.ts': "import {useState} from 'react';",
+  });
+
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('发现 1 处层次倒置');
+  expect(result.stderr).toContain('domain 必须是纯模型层');
+});
+
 it('keeps ui independent from the app assembly layer', () => {
   const result = checkFixture({
     'src/ui/screen.ts': "import {AppRoot} from '../app/AppRoot';",
