@@ -26,6 +26,8 @@ export const CHAT_LIMITS = {
   maxTitleInputLength: 60,
 } as const;
 
+export const CHAT_SCROLL_BOTTOM_TOLERANCE = 12;
+
 export const JAVASCRIPT_LIMITS = {
   maxCodeLength: 16_000,
   maxToolInputLength: 4_096,

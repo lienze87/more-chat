@@ -16,7 +16,7 @@ interface ThinkingBlockProps {
   endedAt?: number;
 }
 
-/** 深度思考过程：默认折叠，流式期间展开并实时刷新耗时。 */
+/** 深度思考过程：按需展开，流式期间实时刷新耗时。 */
 export function ThinkingBlock({
   text,
   streaming,
@@ -25,8 +25,7 @@ export function ThinkingBlock({
 }: ThinkingBlockProps) {
   const theme = useTheme();
   const {spacing} = theme;
-  const [expanded, setExpanded] = React.useState(streaming);
-  const wasStreaming = React.useRef(streaming);
+  const [expanded, setExpanded] = React.useState(false);
 
   // 流式期间每秒刷新一次，让「用时」跟着走；结束后改用 endedAt。
   const [now, setNow] = React.useState(() => Date.now());
@@ -36,13 +35,6 @@ export function ThinkingBlock({
     }
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [streaming]);
-
-  React.useEffect(() => {
-    if (wasStreaming.current && !streaming) {
-      setExpanded(false);
-    }
-    wasStreaming.current = streaming;
   }, [streaming]);
 
   const elapsedMs = Math.max(

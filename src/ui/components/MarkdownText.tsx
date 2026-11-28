@@ -1,7 +1,11 @@
-import React, {useMemo} from 'react';
+import React, {memo, useMemo} from 'react';
 import {Linking, ScrollView, Text, View} from 'react-native';
 import Markdown, {
+  MarkdownIt,
+  parser,
   renderRules,
+  type ASTNode,
+  type MarkdownProps,
   type RenderFunction,
   type RenderRules,
 } from 'react-native-markdown-display';
@@ -19,6 +23,26 @@ interface MarkdownTextProps {
   annotations?: CitationAnnotation[];
 }
 
+const markdownIt = MarkdownIt({typographer: true});
+// The renderer accepts an AST as children, but the library types only declare React children.
+const MarkdownAst = Markdown as React.ComponentType<
+  MarkdownProps & {children: ASTNode[]}
+>;
+const parseAst = parser as unknown as (
+  source: string,
+  render: (nodes: ASTNode[]) => ASTNode[],
+  markdownIt: ReturnType<typeof MarkdownIt>,
+) => ASTNode[];
+
+function assignNodeKeys(nodes: ASTNode[]): ASTNode[] {
+  for (const [index, node] of nodes.entries()) {
+    // Keys are scoped to siblings. Appending text keeps preceding native views mounted.
+    node.key = `${node.type}-${index}`;
+    assignNodeKeys(node.children);
+  }
+  return nodes;
+}
+
 const openUrl = (url: string) => {
   Linking.openURL(url).catch(() => undefined);
 };
@@ -32,6 +56,8 @@ const scrollCode =
   );
 
 const createRules = (citationColor: string): RenderRules => ({
+  body: (node, children, parents, styles) =>
+    renderRules.body!({...node, key: 'body'}, children, parents, styles),
   code_block: scrollCode(renderRules.code_block!),
   fence: scrollCode(renderRules.fence!),
   table: (node, children, parents, styles) => {
@@ -85,11 +111,18 @@ const createRules = (citationColor: string): RenderRules => ({
   },
 });
 
-export function MarkdownText({content, annotations}: MarkdownTextProps) {
+export const MarkdownText = memo(function MarkdownText({
+  content,
+  annotations,
+}: MarkdownTextProps) {
   const theme = useTheme();
   const {markdown} = useMemo(
     () => buildCitedMarkdown(content, annotations),
     [content, annotations],
+  );
+  const nodes = useMemo(
+    () => parseAst(markdown, assignNodeKeys, markdownIt),
+    [markdown],
   );
   const markdownStyles = useMemo(() => createStyles(theme), [theme]);
 
@@ -99,11 +132,11 @@ export function MarkdownText({content, annotations}: MarkdownTextProps) {
   );
 
   return (
-    <Markdown style={markdownStyles} rules={rules}>
-      {markdown}
-    </Markdown>
+    <MarkdownAst style={markdownStyles} rules={rules} markdownit={markdownIt}>
+      {nodes}
+    </MarkdownAst>
   );
-}
+});
 
 function createStyles(theme: Theme) {
   const {colors, spacing: s, radius: r} = theme;
